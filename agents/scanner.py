@@ -105,6 +105,8 @@ def run_scanner(previous_data_store=None):
             market_cap=data["market_cap"]
         )
 
+        print(f"  {coin.upper():<15} Prix: ${data['price']:<12} | 1h: {data['price_change_1h']:+.2f}% | 24h: {data['price_change_24h']:+.2f}%")
+
         analysis = analyze_coin(data, previous_data_store.get(coin))
 
         if analysis["signal_type"] != "hold":
