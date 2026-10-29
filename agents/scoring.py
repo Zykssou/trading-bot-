@@ -16,9 +16,9 @@ def calculate_score(scanner_signal, intelligence_signal=None):
     score = max(0, min(100, score))
 
     recommendation = "hold"
-    if score >= 60:
+    if score >= 30:
         recommendation = "buy"
-    elif score <= 20:
+    elif score <= 10:
         recommendation = "sell"
 
     return {

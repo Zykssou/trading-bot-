@@ -16,8 +16,8 @@ MAX_DAILY_LOSS_PERCENT = 0.10  # coupe tout si -10% dans la journée
 
 # Scanner
 SCAN_INTERVAL_SECONDS = 30  # scan toutes les 30 secondes
-VOLUME_SPIKE_THRESHOLD = 3.0  # volume x3 = signal fort
-PRICE_CHANGE_THRESHOLD = 10.0  # +10% en 1h = signal fort
+VOLUME_SPIKE_THRESHOLD = 1.5  # volume x1.5 = signal fort
+PRICE_CHANGE_THRESHOLD = 3.0  # +3% en 1h = signal fort
 
 # Marchés surveillés
 TRACKED_COINS = [
