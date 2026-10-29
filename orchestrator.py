@@ -42,6 +42,7 @@ def run():
 
         # 3. Analyser les signaux d'achat
         for signal in scanner_signals:
+            report_signal(signal)
             if signal.get("signal_type") != "buy":
                 continue
 

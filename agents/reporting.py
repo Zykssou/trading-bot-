@@ -54,12 +54,7 @@ def report_summary():
         f"Derniers signaux: `{len(signals)}`"
     )
     send_telegram(msg)
-def report_signal(coin, signal_type, score, reason):                          
-      emoji = "🔴" if signal_type == "sell" else "🟢"
-      msg = (                                                                   
-          f"{emoji} *SIGNAL {signal_type.upper()} — {coin.upper()}*\n"
-          f"Score: `{score}`\n"                                                 
-          f"Raison: `{reason}`"                                                 
-      )                                                                         
-      send_telegram(msg)     
-
+def report_signal(s):
+    t=s.get('signal_type','')
+    coin=s.get('coin','').upper()
+    send_telegram('SIGNAL '+t.upper()+' '+coin)
