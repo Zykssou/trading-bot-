@@ -17,11 +17,15 @@ END_TS   = int(datetime(2026, 10, 30, tzinfo=timezone.utc).timestamp())
 
 def fetch_history(coin_id):
     try:
-        url = f"{COINGECKO_API_URL}/coins/{coin_id}/market_chart/range"
-        params = {"vs_currency": "usd", "from": START_TS, "to": END_TS}
+        url = f"{COINGECKO_API_URL}/coins/{coin_id}/market_chart"
+        params = {"vs_currency": "usd", "days": 365}
         r = requests.get(url, params=params, timeout=15)
         if r.status_code == 200:
-            return r.json().get("prices", [])
+            data = r.json().get("prices", [])
+            print(f"  {len(data)} points de données récupérés")
+            return data
+        else:
+            print(f"  API erreur {r.status_code}")
     except Exception as e:
         print(f"[Backtest] Erreur fetch {coin_id}: {e}")
     return []
@@ -68,7 +72,7 @@ def score_signal(price_change, prices_so_far):
 
 def run_backtest():
     print("=" * 60)
-    print("  BACKTEST — Jan 2025 → Oct 2026 | Départ: 1 000€")
+    print("  BACKTEST — 365 derniers jours | Départ: 1 000€")
     print("=" * 60)
 
     balance = INITIAL_BALANCE
@@ -83,7 +87,7 @@ def run_backtest():
         raw = fetch_history(coin)
         time.sleep(2)
 
-        if len(raw) < 60:
+        if len(raw) < 30:
             print(f"  Pas assez de données pour {coin}")
             continue
 
@@ -157,7 +161,7 @@ def run_backtest():
     print("\n" + "=" * 60)
     print("  RÉSULTATS DU BACKTEST")
     print("=" * 60)
-    print(f"  Période         : Jan 2025 → Oct 2026")
+    print(f"  Période         : 365 derniers jours")
     print(f"  Balance départ  : {INITIAL_BALANCE:.2f}€")
     print(f"  Balance finale  : {balance:.2f}€")
     print(f"  Rendement total : {total_return:+.1f}%")
