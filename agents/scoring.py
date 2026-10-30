@@ -1,4 +1,4 @@
-def calculate_score(scanner_signal, intelligence_signal=None, history_signal=None):
+def calculate_score(scanner_signal, intelligence_signal=None, history_signal=None, news_signal=None):
     score = scanner_signal.get("score", 0)
     reasons = [scanner_signal.get("reason", "")]
 
@@ -60,6 +60,18 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
         if vol is not None and vol > 15:
             score -= 10
             reasons.append(f"Volatilite elevee ({vol:.0f}%)")
+
+    if news_signal:
+        news_score = news_signal.get("news_score", 0)
+        if news_score >= 20:
+            score += 20
+            reasons.append(f"News positives ({news_signal.get('positive')} articles)")
+        elif news_score <= -20:
+            score -= 25
+            reasons.append(f"News negatives ({news_signal.get('negative')} articles)")
+        elif news_score > 0:
+            score += 10
+            reasons.append("News globalement positives")
 
     if intelligence_signal:
         buzz_score = intelligence_signal.get("buzz_score", 0)
