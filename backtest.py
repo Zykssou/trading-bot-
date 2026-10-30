@@ -1,6 +1,6 @@
 import requests
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 COINGECKO_API_URL = "https://api.coingecko.com/api/v3"
 INITIAL_BALANCE = 1000.0
@@ -9,32 +9,27 @@ STOP_LOSS_PERCENT = 0.08
 TAKE_PROFIT_PERCENT = 0.20
 MAX_TRADE_PERCENT = 0.05
 
-COINS = ["bitcoin", "ethereum", "solana", "dogecoin", "pepe"]
+COINS = ["bitcoin", "ethereum", "solana", "dogecoin", "shiba-inu", "pepe", "bnb", "xrp"]
 
-# Janvier 2025 → aujourd'hui
-START_TS = int(datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp())
-END_TS   = int(datetime(2026, 10, 30, tzinfo=timezone.utc).timestamp())
-
-def fetch_history(coin_id):
+def fetch_hourly(coin_id):
     try:
         url = f"{COINGECKO_API_URL}/coins/{coin_id}/market_chart"
-        params = {"vs_currency": "usd", "days": 365}
+        params = {"vs_currency": "usd", "days": 90}
         r = requests.get(url, params=params, timeout=15)
         if r.status_code == 200:
             data = r.json().get("prices", [])
-            print(f"  {len(data)} points de données récupérés")
+            print(f"  {len(data)} bougies horaires recuperees")
             return data
         else:
             print(f"  API erreur {r.status_code}")
     except Exception as e:
-        print(f"[Backtest] Erreur fetch {coin_id}: {e}")
+        print(f"[Backtest] Erreur {coin_id}: {e}")
     return []
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
         return 50
-    changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-    changes = changes[-period:]
+    changes = [prices[i] - prices[i-1] for i in range(1, len(prices))][-period:]
     gains = [c for c in changes if c > 0]
     losses = [abs(c) for c in changes if c < 0]
     avg_gain = sum(gains) / period if gains else 0
@@ -52,130 +47,145 @@ def score_signal(price_change, prices_so_far):
     score = 0
     if price_change >= PRICE_CHANGE_THRESHOLD:
         score += 30
-
     rsi = calculate_rsi(prices_so_far)
-    ma7  = calculate_ma(prices_so_far, 7)
-    ma30 = calculate_ma(prices_so_far, 30)
-
-    current = prices_so_far[-1]
+    ma7  = calculate_ma(prices_so_far, 168)   # 7 jours en heures
+    ma30 = calculate_ma(prices_so_far, 720)   # 30 jours en heures
     if ma7 > ma30:
         score += 20
     else:
         score -= 20
-
     if rsi < 30:
         score += 30
     elif rsi > 70:
         score -= 30
-
-    return score, rsi, ma7, ma30
+    return score, rsi
 
 def run_backtest():
     print("=" * 60)
-    print("  BACKTEST — 365 derniers jours | Départ: 1 000€")
+    print("  BACKTEST HORAIRE — 90 jours | Depart: 1 000 euros")
     print("=" * 60)
 
     balance = INITIAL_BALANCE
-    all_trades = []
     total_wins = 0
     total_losses = 0
+    all_trades = []
     peak_balance = INITIAL_BALANCE
     max_drawdown = 0.0
 
     for coin in COINS:
-        print(f"\n[Backtest] Récupération données {coin.upper()}...")
-        raw = fetch_history(coin)
-        time.sleep(8)
+        print(f"\n[Backtest] Recuperation donnees {coin.upper()}...")
+        raw = fetch_hourly(coin)
+        time.sleep(12)
 
-        if len(raw) < 30:
-            print(f"  Pas assez de données pour {coin}")
+        if len(raw) < 50:
+            print(f"  Pas assez de donnees pour {coin}")
             continue
 
         prices = [p[1] for p in raw]
-        dates  = [datetime.fromtimestamp(p[0]/1000).strftime("%Y-%m-%d") for p in raw]
+        dates  = [datetime.fromtimestamp(p[0]/1000).strftime("%Y-%m-%d %Hh") for p in raw]
 
         position = None
         coin_wins = 0
         coin_losses = 0
 
-        for i in range(30, len(prices)):
+        for i in range(24, len(prices)):
             current_price = prices[i]
             prev_price    = prices[i-1]
-            price_change_pct = ((current_price - prev_price) / prev_price) * 100
+            price_change  = ((current_price - prev_price) / prev_price) * 100
             prices_so_far = prices[:i+1]
             date = dates[i]
 
-            # Vérifier si position ouverte → stop-loss / take-profit
+            # Verifier stop-loss / take-profit heure par heure
             if position:
                 entry = position["entry_price"]
                 change = (current_price - entry) / entry
 
-                if change <= -STOP_LOSS_PERCENT or change >= TAKE_PROFIT_PERCENT:
+                if change <= -STOP_LOSS_PERCENT:
                     pnl = position["amount"] * change
                     balance += position["amount"] + pnl
-
-                    if change >= TAKE_PROFIT_PERCENT:
-                        result = "WIN"
-                        coin_wins += 1
-                        total_wins += 1
-                    else:
-                        result = "LOSS"
-                        coin_losses += 1
-                        total_losses += 1
-
+                    coin_losses += 1
+                    total_losses += 1
                     all_trades.append({
                         "coin": coin, "date_buy": position["date"],
                         "date_sell": date, "entry": entry,
                         "exit": current_price, "pnl": pnl,
-                        "pct": change * 100, "result": result
+                        "pct": change * 100, "result": "STOP-LOSS"
                     })
-
-                    if balance > peak_balance:
-                        peak_balance = balance
-                    drawdown = (peak_balance - balance) / peak_balance * 100
-                    if drawdown > max_drawdown:
-                        max_drawdown = drawdown
-
                     position = None
 
-            # Chercher signal d'achat
-            if not position and price_change_pct >= PRICE_CHANGE_THRESHOLD:
-                score, rsi, ma7, ma30 = score_signal(price_change_pct, prices_so_far)
+                elif change >= TAKE_PROFIT_PERCENT:
+                    pnl = position["amount"] * change
+                    balance += position["amount"] + pnl
+                    coin_wins += 1
+                    total_wins += 1
+                    all_trades.append({
+                        "coin": coin, "date_buy": position["date"],
+                        "date_sell": date, "entry": entry,
+                        "exit": current_price, "pnl": pnl,
+                        "pct": change * 100, "result": "TAKE-PROFIT"
+                    })
+                    position = None
+
+                if balance > peak_balance:
+                    peak_balance = balance
+                drawdown = (peak_balance - balance) / peak_balance * 100
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+
+            # Signal d'achat
+            if not position and price_change >= PRICE_CHANGE_THRESHOLD:
+                score, rsi = score_signal(price_change, prices_so_far)
                 if score >= 50:
                     trade_amount = balance * MAX_TRADE_PERCENT
-                    if trade_amount >= 10:
+                    if trade_amount >= 5:
                         balance -= trade_amount
                         position = {
-                            "coin": coin, "entry_price": current_price,
-                            "amount": trade_amount, "date": date
+                            "entry_price": current_price,
+                            "amount": trade_amount,
+                            "date": date,
+                            "coin": coin
                         }
 
+        # Fermer position encore ouverte
         if position:
-            pnl = position["amount"] * ((prices[-1] - position["entry_price"]) / position["entry_price"])
+            change = (prices[-1] - position["entry_price"]) / position["entry_price"]
+            pnl = position["amount"] * change
             balance += position["amount"] + pnl
+            if change >= 0:
+                coin_wins += 1
+                total_wins += 1
+            else:
+                coin_losses += 1
+                total_losses += 1
+            all_trades.append({
+                "coin": coin, "date_buy": position["date"],
+                "date_sell": dates[-1], "entry": position["entry_price"],
+                "exit": prices[-1], "pnl": pnl,
+                "pct": change * 100, "result": "OUVERT->FERME"
+            })
+
+        print(f"  {coin.upper()}: {coin_wins}W / {coin_losses}L")
 
     total_trades = total_wins + total_losses
     win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
     total_return = ((balance - INITIAL_BALANCE) / INITIAL_BALANCE) * 100
 
     print("\n" + "=" * 60)
-    print("  RÉSULTATS DU BACKTEST")
+    print("  RESULTATS DU BACKTEST")
     print("=" * 60)
-    print(f"  Période         : 365 derniers jours")
-    print(f"  Balance départ  : {INITIAL_BALANCE:.2f}€")
-    print(f"  Balance finale  : {balance:.2f}€")
-    print(f"  Rendement total : {total_return:+.1f}%")
-    print(f"  Trades totaux   : {total_trades}")
-    print(f"  Taux de réussite: {win_rate:.1f}%")
-    print(f"  Max drawdown    : -{max_drawdown:.1f}%")
+    print(f"  Periode          : 90 derniers jours (horaire)")
+    print(f"  Balance depart   : {INITIAL_BALANCE:.2f} euros")
+    print(f"  Balance finale   : {balance:.2f} euros")
+    print(f"  Rendement total  : {total_return:+.1f}%")
+    print(f"  Trades totaux    : {total_trades}")
+    print(f"  Taux de reussite : {win_rate:.1f}%")
+    print(f"  Max drawdown     : -{max_drawdown:.1f}%")
     print("=" * 60)
 
-    # Afficher les 5 pires trades (crash)
     if all_trades:
-        worst = sorted(all_trades, key=lambda x: x["pnl"])[:5]
-        print("\n  TOP 5 PIRES TRADES (gestion du crash) :")
-        for t in worst:
-            print(f"  {t['date_sell']} | {t['coin'].upper():<10} {t['pct']:+.1f}% | {t['pnl']:+.2f}€")
+        print("\n  DERNIERS TRADES :")
+        for t in sorted(all_trades, key=lambda x: x["date_sell"])[-8:]:
+            print(f"  {t['date_sell']} | {t['coin'].upper():<10} {t['pct']:+.1f}% | {t['pnl']:+.2f}€ | {t['result']}")
 
     print()
 
