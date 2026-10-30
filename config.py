@@ -17,13 +17,15 @@ MAX_DAILY_LOSS_PERCENT = 0.10  # coupe tout si -10% dans la journée
 # Scanner
 SCAN_INTERVAL_SECONDS = 30  # scan toutes les 30 secondes
 VOLUME_SPIKE_THRESHOLD = 1.5  # volume x1.5 = signal fort
-PRICE_CHANGE_THRESHOLD = 3.0  # +3% en 1h = signal fort
+PRICE_CHANGE_THRESHOLD = 1.0  # +1% en 1h = signal fort
 
 # Marchés surveillés
 TRACKED_COINS = [
-    "bitcoin", "ethereum", "solana",
-    "pepe", "dogecoin", "shiba-inu",
-    "bonk", "floki", "wojak"
+    "bitcoin", "ethereum", "solana", "bnb", "xrp",
+    "cardano", "avalanche-2", "chainlink", "polkadot",
+    "pepe", "dogecoin", "shiba-inu", "floki", "bonk",
+    "wojak", "sui", "aptos", "arbitrum", "optimism",
+    "injective-protocol", "render-token", "fetch-ai"
 ]
 
 # Or et matières premières (via API alternative)
