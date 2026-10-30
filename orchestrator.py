@@ -3,9 +3,10 @@ from datetime import datetime
 from database.db import init_db
 from agents.scanner import run_scanner
 from agents.scoring import calculate_score
+from agents.history import analyze_history
 from agents.risk import check_risk, check_positions_to_close
 from agents.execution import execute_buy, execute_sell
-from agents.reporting import report_buy, report_sell, report_summary
+from agents.reporting import report_buy, report_sell, report_summary, report_signal
 from config import SCAN_INTERVAL_SECONDS
 
 def run():
@@ -43,22 +44,26 @@ def run():
         # 3. Analyser les signaux d'achat
         for signal in scanner_signals:
             report_signal(signal)
+
             if signal.get("signal_type") != "buy":
                 continue
 
-            # Scoring
-            scored = calculate_score(signal)
+            coin = signal.get("coin", "")
+            history = analyze_history(coin)
+
+            # Scoring avec analyse historique
+            scored = calculate_score(signal, history_signal=history)
             if scored["recommendation"] != "buy":
+                print(f"[Orchestrateur] Signal {coin} rejeté après analyse: {scored['reasons']}")
                 continue
 
-            coin = scored["coin"]
             price = signal.get("price", 0)
 
             if price <= 0:
                 continue
 
             # Vérification du risque
-            risk = check_risk(coin, scored["final_score"], price)
+            risk = check_risk(scored["coin"], scored["final_score"], price)
             if not risk["approved"]:
                 print(f"[Orchestrateur] Trade refusé pour {coin}: {risk['reason']}")
                 continue
@@ -74,7 +79,7 @@ def run():
 
             if result["success"]:
                 report_buy(
-                    coin=coin,
+                    coin=scored["coin"],
                     tokens=result["tokens"],
                     price=price,
                     amount_spent=result["amount_spent"],
