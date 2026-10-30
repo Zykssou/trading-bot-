@@ -4,6 +4,7 @@ from database.db import init_db
 from agents.scanner import run_scanner
 from agents.scoring import calculate_score
 from agents.history import analyze_history
+from agents.social import get_social_score
 from agents.risk import check_risk, check_positions_to_close
 from agents.execution import execute_buy, execute_sell
 from agents.reporting import report_buy, report_sell, report_summary, report_signal
@@ -50,9 +51,10 @@ def run():
 
             coin = signal.get("coin", "")
             history = analyze_history(coin)
+            social = get_social_score(coin)
 
-            # Scoring avec analyse historique
-            scored = calculate_score(signal, history_signal=history)
+            # Scoring avec analyse historique + social
+            scored = calculate_score(signal, intelligence_signal=social, history_signal=history)
             if scored["recommendation"] != "buy":
                 print(f"[Orchestrateur] Signal {coin} rejeté après analyse: {scored['reasons']}")
                 continue
