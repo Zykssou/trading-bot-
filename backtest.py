@@ -85,7 +85,7 @@ def run_backtest():
     for coin in COINS:
         print(f"\n[Backtest] Récupération données {coin.upper()}...")
         raw = fetch_history(coin)
-        time.sleep(2)
+        time.sleep(8)
 
         if len(raw) < 30:
             print(f"  Pas assez de données pour {coin}")
