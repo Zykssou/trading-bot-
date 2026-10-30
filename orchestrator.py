@@ -43,11 +43,25 @@ def run():
             if result["success"]:
                 report_sell(pos["coin"], pos["price"], pos["pnl"])
 
+        # Filtre marché global — si BTC chute, on n'achète rien + on ferme tout
+        btc_data = previous_data_store.get("bitcoin", {})
+        btc_change = btc_data.get("price_change_1h", 0) if isinstance(btc_data, dict) else 0
+        market_in_panic = btc_change <= -1.5
+        if market_in_panic:
+            print(f"[Orchestrateur] MARCHE EN PANIQUE (BTC {btc_change:+.1f}%) — fermeture positions + aucun achat")
+            for pos in check_positions_to_close(current_prices, force_close=True):
+                result = execute_sell(pos["id"], pos["coin"], pos["price"], pos["pnl"])
+                if result["success"]:
+                    report_sell(pos["coin"], pos["price"], pos["pnl"])
+
         # 3. Analyser les signaux d'achat
         for signal in scanner_signals:
             report_signal(signal)
 
             if signal.get("signal_type") != "buy":
+                continue
+
+            if market_in_panic:
                 continue
 
             coin = signal.get("coin", "")

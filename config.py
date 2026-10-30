@@ -22,10 +22,9 @@ PRICE_CHANGE_THRESHOLD = 1.0  # +1% en 1h = signal fort
 # Marchés surveillés
 TRACKED_COINS = [
     "bitcoin", "ethereum", "solana", "bnb", "xrp",
-    "cardano", "avalanche-2", "chainlink", "polkadot",
-    "pepe", "dogecoin", "shiba-inu", "floki", "bonk",
-    "wojak", "sui", "aptos", "arbitrum", "optimism",
-    "injective-protocol", "render-token", "fetch-ai"
+    "cardano", "avalanche-2", "chainlink",
+    "pepe", "shiba-inu", "floki", "bonk",
+    "wojak", "sui", "injective-protocol", "render-token", "fetch-ai"
 ]
 
 # Or et matières premières (via API alternative)

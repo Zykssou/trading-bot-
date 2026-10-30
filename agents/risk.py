@@ -31,7 +31,7 @@ def check_risk(coin, score, price):
         "reason": "Risque validé"
     }
 
-def check_positions_to_close(current_prices):
+def check_positions_to_close(current_prices, force_close=False):
     open_positions = get_open_positions()
     to_close = []
 
@@ -44,7 +44,15 @@ def check_positions_to_close(current_prices):
 
         pnl_pct = (price_now - buy_price) / buy_price
 
-        if pnl_pct <= -STOP_LOSS_PERCENT:
+        if force_close:
+            to_close.append({
+                "id": pos_id,
+                "coin": coin,
+                "reason": f"Fermeture urgence marché en panique ({pnl_pct*100:.1f}%)",
+                "price": price_now,
+                "pnl": (price_now - buy_price) * amount / buy_price
+            })
+        elif pnl_pct <= -STOP_LOSS_PERCENT:
             to_close.append({
                 "id": pos_id,
                 "coin": coin,

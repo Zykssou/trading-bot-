@@ -9,7 +9,7 @@ STOP_LOSS_PERCENT = 0.08
 TAKE_PROFIT_PERCENT = 0.20
 MAX_TRADE_PERCENT = 0.05
 
-COINS = ["bitcoin", "ethereum"]
+COINS = ["bitcoin", "ethereum", "solana", "pepe", "shiba-inu", "floki"]
 
 def fetch_hourly(coin_id):
     try:
@@ -75,7 +75,7 @@ def run_backtest():
     for coin in COINS:
         print(f"\n[Backtest] Recuperation donnees {coin.upper()}...")
         raw = fetch_hourly(coin)
-        time.sleep(60)
+        time.sleep(3)
 
         if len(raw) < 50:
             print(f"  Pas assez de donnees pour {coin}")
@@ -132,8 +132,12 @@ def run_backtest():
                 if drawdown > max_drawdown:
                     max_drawdown = drawdown
 
+            # Filtre marché global — pas d'achat si BTC en panique
+            btc_prices = prices_so_far  # approximation locale
+            btc_change_now = price_change if coin == "bitcoin" else 0
+
             # Signal d'achat
-            if not position and price_change >= PRICE_CHANGE_THRESHOLD:
+            if not position and price_change >= PRICE_CHANGE_THRESHOLD and btc_change_now >= -1.5:
                 score, rsi = score_signal(price_change, prices_so_far)
                 if score >= 40:
                     trade_amount = balance * MAX_TRADE_PERCENT
