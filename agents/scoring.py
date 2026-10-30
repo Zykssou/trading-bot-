@@ -4,24 +4,50 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
 
     if history_signal:
         rsi_val = history_signal.get("rsi")
-        trend = history_signal.get("trend")
         macd_val = history_signal.get("macd")
+        confirmations = history_signal.get("trend_confirmations", 0)
+        near_support = history_signal.get("near_support", False)
+        near_resistance = history_signal.get("near_resistance", False)
+        vol = history_signal.get("volatility")
 
-        if trend == "haussier":
-            score += 20
-            reasons.append("Tendance 30j haussiere")
+        # Tendance multi-timeframe
+        if confirmations == 3:
+            score += 30
+            reasons.append("Tendance haussiere 7j+30j+90j")
+        elif confirmations == 2:
+            score += 15
+            reasons.append("Tendance haussiere 2/3 TF")
+        elif confirmations == 1:
+            score -= 10
+            reasons.append("Tendance mixte")
         else:
-            score -= 20
-            reasons.append("Tendance 30j baissiere")
+            score -= 25
+            reasons.append("Tendance baissiere tous TF")
 
+        # Support / resistance
+        if near_support:
+            score += 20
+            reasons.append("Prix pres du support")
+        if near_resistance:
+            score -= 20
+            reasons.append("Prix pres de la resistance")
+
+        # RSI
         if rsi_val is not None:
             if rsi_val < 30:
                 score += 30
                 reasons.append(f"RSI survente ({rsi_val:.0f})")
+            elif rsi_val < 45:
+                score += 10
+                reasons.append(f"RSI neutre bas ({rsi_val:.0f})")
             elif rsi_val > 70:
                 score -= 30
                 reasons.append(f"RSI surachat ({rsi_val:.0f})")
+            elif rsi_val > 60:
+                score -= 10
+                reasons.append(f"RSI eleve ({rsi_val:.0f})")
 
+        # MACD
         if macd_val is not None:
             if macd_val > 0:
                 score += 15
@@ -29,6 +55,11 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
             else:
                 score -= 10
                 reasons.append("MACD negatif")
+
+        # Volatilite trop haute = risque
+        if vol is not None and vol > 15:
+            score -= 10
+            reasons.append(f"Volatilite elevee ({vol:.0f}%)")
 
     if intelligence_signal:
         buzz_score = intelligence_signal.get("buzz_score", 0)
