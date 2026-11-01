@@ -44,6 +44,9 @@ def fetch_all_coins_data(coin_ids):
                 if cid and cid in results:
                     results[cid]["price_change_1h"] = float(t["priceChangePercent"])
 
+        if len(results) == 0:
+            print(f"[Scanner] DEBUG r24 status={r24.status_code} body={str(r24.text[:300])}")
+            print(f"[Scanner] DEBUG r1h status={r1h.status_code} body={str(r1h.text[:300])}")
         print(f"[Scanner] Binance OK — {len(results)}/{len(tradeable)} coins")
         return results
 
