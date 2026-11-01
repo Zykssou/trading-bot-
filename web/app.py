@@ -37,11 +37,16 @@ def get_db():
 
 def fetch_chart_data(coin_id):
     try:
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        r = requests.get(url, params={"vs_currency": "usd", "days": 7}, timeout=10)
-        if r.status_code == 200:
-            prices = r.json().get("prices", [])
-            return [{"t": p[0], "p": p[1]} for p in prices[-168:]]
+        db = get_db()
+        rows = db.execute("""
+            SELECT price, recorded_at FROM market_data
+            WHERE coin = ?
+            ORDER BY recorded_at DESC
+            LIMIT 336
+        """, (coin_id,)).fetchall()
+        db.close()
+        rows = list(reversed(rows))
+        return [{"t": r["recorded_at"], "p": r["price"]} for r in rows]
     except:
         pass
     return []

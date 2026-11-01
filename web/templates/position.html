@@ -106,7 +106,7 @@
 </div>
 <script>
 const data = {{ chart_data | tojson }};
-const labels = data.map(d => new Date(d.t).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}));
+const labels = data.map(d => { const dt = new Date(d.t); return dt.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) + ' ' + dt.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); });
 const prices = data.map(d => d.p);
 const entryPrice = {{ pos.buy_price }};
 const tpPrice = {{ take_profit_price }};
