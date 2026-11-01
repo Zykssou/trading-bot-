@@ -15,7 +15,7 @@ TAKE_PROFIT_PERCENT = 0.20  # take profit à +20%
 MAX_DAILY_LOSS_PERCENT = 0.10  # coupe tout si -10% dans la journée
 
 # Scanner
-SCAN_INTERVAL_SECONDS = 30  # scan toutes les 30 secondes
+SCAN_INTERVAL_SECONDS = 600  # scan toutes les 10 minutes
 VOLUME_SPIKE_THRESHOLD = 1.5  # volume x1.5 = signal fort
 PRICE_CHANGE_THRESHOLD = 1.0  # +1% en 1h = signal fort
 
