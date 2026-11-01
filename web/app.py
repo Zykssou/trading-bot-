@@ -140,5 +140,144 @@ def position_detail(pos_id):
         chart_data=chart_data
     )
 
+@app.route("/office")
+def office():
+    db = get_db()
+    balance = db.execute("SELECT balance FROM portfolio WHERE id = 1").fetchone()
+    balance = balance["balance"] if balance else INITIAL_BALANCE
+    positions = db.execute("SELECT * FROM positions WHERE status = 'open'").fetchall()
+    invested = sum(p["amount"] for p in positions)
+    unrealized_pnl = sum(p["pnl"] for p in positions)
+    total_value = balance + invested + unrealized_pnl
+    pnl = total_value - INITIAL_BALANCE
+    total_trades = db.execute("SELECT COUNT(*) as c FROM positions WHERE status='closed'").fetchone()["c"]
+    wins = db.execute("SELECT COUNT(*) as c FROM positions WHERE status='closed' AND pnl > 0").fetchone()["c"]
+    win_rate = round(wins / total_trades * 100) if total_trades > 0 else 0
+    db.close()
+    return render_template("office.html",
+        balance=balance, pnl=pnl,
+        positions=positions, win_rate=win_rate
+    )
+
+@app.route("/api/agents")
+def api_agents():
+    db = get_db()
+    balance_row = db.execute("SELECT balance FROM portfolio WHERE id = 1").fetchone()
+    balance = balance_row["balance"] if balance_row else INITIAL_BALANCE
+    positions = db.execute("SELECT * FROM positions WHERE status = 'open'").fetchall()
+    invested = sum(p["amount"] for p in positions)
+    unrealized_pnl = sum(p["pnl"] for p in positions)
+    pnl = (balance + invested + unrealized_pnl) - INITIAL_BALANCE
+    total_trades = db.execute("SELECT COUNT(*) as c FROM positions WHERE status='closed'").fetchone()["c"]
+    wins = db.execute("SELECT COUNT(*) as c FROM positions WHERE status='closed' AND pnl > 0").fetchone()["c"]
+    win_rate = round(wins / total_trades * 100) if total_trades > 0 else 0
+    recent_signals = db.execute("SELECT * FROM signals ORDER BY created_at DESC LIMIT 5").fetchall()
+    market_quiet = db.execute(
+        "SELECT COUNT(*) as c FROM signals WHERE created_at >= datetime('now', '-20 minutes')"
+    ).fetchone()["c"] == 0
+    last_scan = db.execute("SELECT recorded_at FROM market_data ORDER BY recorded_at DESC LIMIT 1").fetchone()
+    coins_scanned = db.execute(
+        "SELECT COUNT(DISTINCT coin) as c FROM market_data WHERE recorded_at >= datetime('now', '-20 minutes')"
+    ).fetchone()["c"]
+    signals_1h = db.execute(
+        "SELECT COUNT(*) as c FROM signals WHERE created_at >= datetime('now', '-1 hour')"
+    ).fetchone()["c"]
+    last_trades = db.execute("SELECT * FROM positions WHERE status='closed' ORDER BY closed_at DESC LIMIT 3").fetchall()
+    last_scan_str = last_scan["recorded_at"][11:16] if last_scan else "—"
+    large_caps = ["bitcoin","ethereum","solana","bnb","xrp","cardano","avalanche-2","chainlink"]
+    nb_large = sum(1 for p in positions if p["coin"] in large_caps)
+
+    def sig_logs(signals):
+        out = []
+        for s in signals[:4]:
+            t = s["created_at"][11:16] if s["created_at"] else "—"
+            out.append({"text": f"[{t}] {s['coin'].upper()} {s['signal_type'].upper()} score:{s['score']}"})
+        return out or [{"text": "Aucun signal récent"}]
+
+    data = {
+        "_stats": {"balance": balance, "pnl": pnl, "positions": len(positions), "win_rate": win_rate},
+        "_market_quiet": market_quiet,
+        "scanner": {
+            "role": "Surveillance des marchés crypto",
+            "info": [
+                {"label": "Dernier scan", "value": last_scan_str, "highlight": True},
+                {"label": "Coins scannés (20min)", "value": str(coins_scanned)},
+                {"label": "Signaux détectés (1h)", "value": str(signals_1h), "highlight": signals_1h > 0},
+                {"label": "Intervalle", "value": "10 minutes"},
+                {"label": "Source", "value": "CoinGecko Demo"},
+            ],
+            "logs": [
+                {"text": f"[{last_scan_str}] Scan terminé — {coins_scanned} coins"},
+                {"text": f"[Scanner] {signals_1h} signal(s) cette heure"},
+                {"text": "[Scanner] Trending coins désactivés"},
+            ],
+        },
+        "analyste": {
+            "role": "Analyse technique et scoring",
+            "info": [
+                {"label": "Signaux actifs (1h)", "value": str(signals_1h), "highlight": signals_1h > 0},
+                {"label": "Seuil BUY", "value": "score ≥ 40 + volume"},
+                {"label": "Seuil SHORT", "value": "score ≤ -20"},
+                {"label": "Confirmation volume", "value": "Obligatoire (×1.5)"},
+                {"label": "Hausse min", "value": "Threshold par coin"},
+            ],
+            "logs": sig_logs(recent_signals),
+        },
+        "trader": {
+            "role": "Exécution des ordres de trading",
+            "info": [
+                {"label": "Positions ouvertes", "value": str(len(positions)), "highlight": len(positions) > 0},
+                {"label": "Balance liquide", "value": f"{balance:.2f}€", "highlight": True},
+                {"label": "P&L latent", "value": f"{unrealized_pnl:+.2f}€", "highlight": True},
+                {"label": "Trades fermés", "value": str(total_trades)},
+                {"label": "Win rate", "value": f"{win_rate}%", "highlight": win_rate >= 50},
+            ],
+            "logs": (
+                [{"text": f"[OPEN] {p['coin'].upper()} {p['position_type'].upper()} PnL:{p['pnl']:+.2f}€"} for p in positions[:3]] +
+                [{"text": f"[FERMÉ] {t['coin'].upper()} {t['pnl']:+.2f}€"} for t in last_trades[:2]]
+            ) or [{"text": "Aucun trade actif"}],
+        },
+        "risk": {
+            "role": "Contrôle du risque et paramètres SL/TP",
+            "info": [
+                {"label": "Stop-loss global", "value": "-5%"},
+                {"label": "Take-profit global", "value": "+10%"},
+                {"label": "Max positions", "value": "5"},
+                {"label": "Max meme coins", "value": "2"},
+                {"label": "Panic BTC filter", "value": "-1.5% en 1h → ferme tout"},
+            ],
+            "logs": [
+                {"text": f"[Risk] {len(positions)}/5 positions actives"},
+                {"text": "[Risk] Anti-corrélation: max 1 large cap + 2 meme"},
+                {"text": "[Risk] Filtres BUYABLE_COINS actifs"},
+            ],
+        },
+        "portfolio": {
+            "role": "Gestion du portefeuille et allocation",
+            "info": [
+                {"label": "Balance liquide", "value": f"{balance:.2f}€", "highlight": True},
+                {"label": "Investi", "value": f"{invested:.2f}€"},
+                {"label": "Valeur totale", "value": f"{balance+invested+unrealized_pnl:.2f}€", "highlight": True},
+                {"label": "P&L total", "value": f"{pnl:+.2f}€", "highlight": True},
+                {"label": "Large caps ouverts", "value": str(nb_large)},
+            ],
+            "logs": (
+                [{"text": f"[POS] {p['coin'].upper()} {p['position_type'].upper()} {p['amount']:.0f}€ PnL:{p['pnl']:+.2f}€"} for p in positions[:4]]
+            ) or [{"text": "Aucune position ouverte"}],
+        },
+        "reporter": {
+            "role": "Alertes Telegram en temps réel",
+            "info": [
+                {"label": "Bot Telegram", "value": "Actif ✓", "highlight": True},
+                {"label": "Dernier signal", "value": recent_signals[0]["created_at"][11:16] if recent_signals else "—"},
+                {"label": "Signaux envoyés (1h)", "value": str(signals_1h), "highlight": signals_1h > 0},
+                {"label": "Chat ID", "value": "****432120"},
+            ],
+            "logs": sig_logs(recent_signals),
+        },
+    }
+    db.close()
+    return jsonify(data)
+
 if __name__ == "__main__":
     app.run(debug=True)

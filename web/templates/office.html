@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Floor — Bureau</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #060810;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.header {
+  width: 100%;
+  padding: 10px 24px;
+  background: #0d0f1a;
+  border-bottom: 1px solid #1a2a3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.logo { font-size: 16px; font-weight: bold; color: #4ecdc4; letter-spacing: 3px; }
+.stats { display: flex; gap: 24px; }
+.stat { text-align: center; }
+.stat .lbl { font-size: 9px; color: #556; text-transform: uppercase; letter-spacing: 1px; }
+.stat .val { font-size: 15px; font-weight: bold; }
+.val.pos { color: #4ecdc4; }
+.val.neg { color: #ff6b6b; }
+.val.neu { color: #ccc; }
+.canvas-wrap { margin-top: 16px; position: relative; }
+#cv { display: block; image-rendering: pixelated; cursor: default; border: 1px solid #1a2a3a; }
+.nav { margin: 12px 0; display: flex; gap: 12px; }
+.nav a {
+  color: #4ecdc4; text-decoration: none; font-size: 11px;
+  border: 1px solid #1a4a4a; padding: 4px 14px; border-radius: 3px;
+  transition: background .15s;
+}
+.nav a:hover { background: #0d2a2a; }
+
+/* Modal */
+#modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.75); z-index: 999;
+  align-items: center; justify-content: center;
+}
+#modal.open { display: flex; }
+.mbox {
+  background: #080e18;
+  border: 2px solid var(--ac, #4ecdc4);
+  border-radius: 8px; padding: 22px; width: 420px; max-width: 92vw;
+  box-shadow: 0 0 50px color-mix(in srgb, var(--ac, #4ecdc4) 30%, transparent);
+  position: relative;
+}
+.mhead { display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #1a2a3a; }
+.mtitle { font-size: 17px; font-weight: bold; color: var(--ac, #4ecdc4); }
+.mclose { background: none; border: none; color: #555; font-size: 18px; cursor: pointer; }
+.mclose:hover { color: #fff; }
+.mrole { font-size: 10px; color: #778; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+.mbadge {
+  display: inline-block; padding: 2px 10px; border-radius: 20px;
+  font-size: 10px; font-weight: bold; margin-bottom: 14px;
+  border: 1px solid var(--ac, #4ecdc4);
+  color: var(--ac, #4ecdc4); background: color-mix(in srgb, var(--ac, #4ecdc4) 12%, transparent);
+}
+.mrows { display: flex; flex-direction: column; gap: 0; }
+.mrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid #0f1a25;
+}
+.mlbl { font-size: 11px; color: #778; }
+.mval { font-size: 12px; font-weight: bold; color: #ddd; }
+.mval.hi { color: var(--ac, #4ecdc4); }
+.mlog {
+  margin-top: 14px; background: #03080f;
+  border: 1px solid #1a2a3a; border-radius: 4px;
+  padding: 10px; font-size: 10px; max-height: 110px; overflow-y: auto;
+}
+.mlog .ll { padding: 1px 0; color: #4ecdc455; }
+.mlog .ll:first-child { color: var(--ac, #4ecdc4); }
+.mlog .ll.warn { color: #ffd70088; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">⚡ TRADING FLOOR</div>
+  <div class="stats">
+    <div class="stat">
+      <div class="lbl">Balance</div>
+      <div class="val neu" id="hbal">{{ "%.2f"|format(balance) }}€</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">P&amp;L Total</div>
+      <div class="val {{ 'pos' if pnl >= 0 else 'neg' }}" id="hpnl">{{ "%+.2f"|format(pnl) }}€</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Positions</div>
+      <div class="val neu" id="hpos">{{ positions|length }}</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Win Rate</div>
+      <div class="val {{ 'pos' if win_rate >= 50 else 'neg' }}" id="hwr">{{ win_rate }}%</div>
+    </div>
+  </div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="cv" width="900" height="520"></canvas>
+</div>
+<div class="nav">
+  <a href="/">← Dashboard</a>
+  <a href="#" id="btnRef">↻ Actualiser</a>
+</div>
+
+<div id="modal">
+  <div class="mbox" id="mbox">
+    <div class="mhead">
+      <span class="mtitle" id="mtitle">—</span>
+      <button class="mclose" onclick="closeModal()">✕</button>
+    </div>
+    <div class="mrole" id="mrole">—</div>
+    <span class="mbadge" id="mbadge">EN SERVICE</span>
+    <div class="mrows" id="mrows"></div>
+    <div class="mlog" id="mlog"></div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+//  TRADING FLOOR  —  top-down pixel art office
+// ──────────────────────────────────────────────────────────────
+const cv = document.getElementById('cv');
+const cx = cv.getContext('2d');
+const W = 900, H = 520;
+
+// ── Colors ──────────────────────────────────────────────────
+const C = {
+  floorA: '#C4A882', floorB: '#B89A74',
+  wall:   '#140C06', skirt: '#2C1810',
+  deskT:  '#7B5B1E', deskS: '#5A3F10', deskE: '#3D2800',
+  deskHi: '#C49030',
+  mon:    '#111', monOff: '#050D14', monOn: '#0A2030',
+  chair:  '#2A3A4A', chairHi: '#334455',
+  plantG: '#2D6A4F', plantG2: '#3D8B5F', plantPot: '#8B4513',
+  meetT:  '#5D4037', meetTHi: '#7B5E4A',
+  coffeeBody: '#4A4A4A', coffeePanel: '#333',
+};
+
+// ── Agent definitions ──────────────────────────────────────
+const DEFS = [
+  { id:'scanner',   name:'Scanner',     icon:'🔍', color:'#4ECDC4', dark:'#1E7A74',
+    desk:{x:70,  y:85,  w:115, h:60}, star:false },
+  { id:'analyste',  name:'Analyste',    icon:'📊', color:'#45B7D1', dark:'#1A6080',
+    desk:{x:260, y:85,  w:115, h:60}, star:false },
+  { id:'trader',    name:'★ Trader',    icon:'⚡', color:'#FFD700', dark:'#A07800',
+    desk:{x:520, y:72,  w:130, h:72}, star:true  },
+  { id:'risk',      name:'Risk Mgr',    icon:'🛡', color:'#FF6B6B', dark:'#A02020',
+    desk:{x:70,  y:270, w:115, h:60}, star:false },
+  { id:'portfolio', name:'Portfolio',   icon:'💼', color:'#98E8C0', dark:'#2A7050',
+    desk:{x:260, y:270, w:115, h:60}, star:false },
+  { id:'reporter',  name:'Reporter',    icon:'📱', color:'#C3A0E8', dark:'#6A30A0',
+    desk:{x:520, y:270, w:115, h:60}, star:false },
+];
+
+const COFFEE = { x:795, y:145, w:46, h:62 };
+const COFFEE_SPOT = { x:775, y:240 };
+const MEET = { x:370, y:385, w:220, h:80 };
+const PLANTS = [{x:22,y:22},{x:846,y:22},{x:22,y:456},{x:846,y:456}];
+
+// ── Character state ────────────────────────────────────────
+function initChars() {
+  return DEFS.map(d => {
+    const hx = d.desk.x + d.desk.w / 2;
+    const hy = d.desk.y + d.desk.h + 22;
+    return {
+      ...d,
+      x: hx, y: hy,
+      hx, hy,
+      tx: hx, ty: hy,
+      state: 'working',
+      timer: 300 + Math.random() * 500,
+      angle: -Math.PI / 2,
+      _mz: null,
+    };
+  });
+}
+let chars = initChars();
+let apiData = {};
+let marketQuiet = false;
+const SPEED = 1.6;
+const COFFEE_DUR = 280;
+
+// ── Update loop ────────────────────────────────────────────
+function update() {
+  chars.forEach(c => {
+    c.timer--;
+    const dx = c.tx - c.x, dy = c.ty - c.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 1.5) {
+      const spd = Math.min(SPEED, dist);
+      c.x += dx / dist * spd;
+      c.y += dy / dist * spd;
+      c.angle = Math.atan2(dy, dx);
+    } else {
+      c.x = c.tx; c.y = c.ty;
+      if (c.state === 'to_coffee') {
+        c.state = 'at_coffee'; c.timer = COFFEE_DUR;
+      } else if (c.state === 'at_coffee' && c.timer <= 0) {
+        c.state = 'back'; c.tx = c.hx; c.ty = c.hy;
+      } else if (c.state === 'back') {
+        c.state = 'working'; c.timer = 350 + Math.random() * 550;
+        c.angle = -Math.PI / 2;
+      } else if (c.state === 'working' && c.timer <= 0) {
+        if (marketQuiet) {
+          c.state = 'to_coffee';
+          c.tx = COFFEE_SPOT.x + (Math.random() - .5) * 22;
+          c.ty = COFFEE_SPOT.y + (Math.random() - .5) * 16;
+        } else {
+          c.timer = 350 + Math.random() * 600;
+        }
+      }
+    }
+  });
+}
+
+// ── Drawing helpers ────────────────────────────────────────
+function drawFloor() {
+  const T = 30;
+  for (let ty = 0; ty < Math.ceil(H/T)+1; ty++)
+    for (let tx = 0; tx < Math.ceil(W/T)+1; tx++) {
+      cx.fillStyle = (tx+ty)%2===0 ? C.floorA : C.floorB;
+      cx.fillRect(tx*T, ty*T, T, T);
+    }
+  cx.fillStyle = C.wall;
+  cx.fillRect(0,0,W,15); cx.fillRect(0,H-15,W,15);
+  cx.fillRect(0,0,14,H); cx.fillRect(W-14,0,14,H);
+  cx.fillStyle = C.skirt;
+  cx.fillRect(12,13,W-24,3); cx.fillRect(12,H-16,W-24,3);
+  cx.fillRect(13,12,3,H-24); cx.fillRect(W-16,12,3,H-24);
+}
+
+function drawPlant(px, py) {
+  cx.fillStyle = C.plantPot;
+  cx.fillRect(px, py+20, 22, 10);
+  cx.fillRect(px+2, py+16, 18, 6);
+  cx.fillStyle = C.plantG;
+  cx.beginPath(); cx.arc(px+11, py+10, 13, 0, Math.PI*2); cx.fill();
+  cx.fillStyle = C.plantG2;
+  cx.beginPath(); cx.arc(px+5,  py+7,  9,  0, Math.PI*2); cx.fill();
+  cx.beginPath(); cx.arc(px+17, py+8,  8,  0, Math.PI*2); cx.fill();
+  cx.fillStyle = '#4CAF5080';
+  cx.beginPath(); cx.arc(px+11, py+4,  7,  0, Math.PI*2); cx.fill();
+}
+
+function drawMeetTable() {
+  const {x,y,w,h} = MEET;
+  cx.fillStyle = '#0003'; cx.fillRect(x+4,y+4,w,h);
+  cx.fillStyle = C.meetT; cx.fillRect(x,y,w,h);
+  cx.fillStyle = C.meetTHi; cx.fillRect(x+2,y+2,w-4,h/3);
+  cx.strokeStyle = '#2A1400'; cx.lineWidth = 2;
+  cx.strokeRect(x,y,w,h);
+  // chairs
+  const cp = [
+    {cx:x+36,cy:y-14},{cx:x+110,cy:y-14},{cx:x+184,cy:y-14},
+    {cx:x+36,cy:y+h+4},{cx:x+110,cy:y+h+4},{cx:x+184,cy:y+h+4},
+  ];
+  cp.forEach(p => {
+    cx.fillStyle = C.chair;
+    cx.fillRect(p.cx-11,p.cy,22,13);
+    cx.fillStyle = C.chairHi;
+    cx.fillRect(p.cx-11,p.cy,22,3);
+  });
+}
+
+function drawCoffee() {
+  const {x,y,w,h} = COFFEE;
+  cx.fillStyle = '#0004'; cx.fillRect(x+3,y+3,w,h);
+  cx.fillStyle = C.coffeeBody; cx.fillRect(x,y,w,h);
+  cx.fillStyle = C.coffeePanel; cx.fillRect(x+3,y+3,w-6,h-6);
+  // display
+  cx.fillStyle = '#001833'; cx.fillRect(x+5,y+6,w-10,14);
+  cx.fillStyle = '#004488'; cx.fillRect(x+6,y+7,w-12,12);
+  cx.font = '7px Courier New'; cx.textAlign = 'center';
+  cx.fillStyle = '#22CCFF'; cx.fillText('CAFÉ', x+w/2, y+16);
+  // buttons
+  [0,1].forEach(i => {
+    cx.fillStyle = i===0 ? '#222' : '#7B3010';
+    cx.beginPath(); cx.arc(x+11+i*18,y+30,4,0,Math.PI*2); cx.fill();
+  });
+  cx.fillStyle = '#1A1A1A'; cx.fillRect(x+6,y+h-16,w-12,10);
+  // steam
+  const t = Date.now()/1000;
+  for (let i=0;i<3;i++) {
+    const sx = x+w/2+Math.sin(t*2.5+i*1.2)*3;
+    const sy = y - 6 - ((t*18+i*6)%18);
+    const a  = .5 - ((t*18+i*6)%18)/18*.5;
+    cx.fillStyle = `rgba(200,200,200,${a})`;
+    cx.beginPath(); cx.arc(sx,sy,2.5,0,Math.PI*2); cx.fill();
+  }
+  cx.font = 'bold 9px Courier New'; cx.textAlign = 'center';
+  cx.fillStyle = '#556'; cx.fillText('CAFÉ ☕', x+w/2, y+h+14);
+}
+
+function screenLines(idx) {
+  const t = Math.floor(Date.now()/600);
+  const lines = [];
+  for (let i=0;i<5;i++) {
+    const v = Math.abs(Math.sin((idx*31+i*7+t)*0.8));
+    lines.push(4 + Math.floor(v*20));
+  }
+  return lines;
+}
+
+function drawDesk(agent) {
+  const {x,y,w,h} = agent.desk;
+  // shadow
+  cx.fillStyle = '#0004'; cx.fillRect(x+4,y+4,w,h);
+  // sides
+  cx.fillStyle = C.deskS; cx.fillRect(x,y+h-5,w,5); cx.fillRect(x+w-5,y,5,h);
+  // top
+  cx.fillStyle = C.deskT; cx.fillRect(x,y,w-5,h-5);
+  // highlight
+  cx.fillStyle = C.deskHi; cx.fillRect(x,y,w-5,2); cx.fillRect(x,y,2,h-5);
+
+  const iw = w-5;
+  const mx = x + iw/2 - 18, my = y + 5;
+  // monitor stand
+  cx.fillStyle = '#1A1A1A';
+  cx.fillRect(mx+11, my+28, 12, 5); cx.fillRect(mx+7, my+33, 18, 3);
+  // monitor frame
+  cx.fillStyle = C.mon; cx.fillRect(mx, my, 36, 28);
+  // screen
+  const on = agent.state === 'working' || agent.state === 'back';
+  cx.fillStyle = on ? C.monOn : C.monOff; cx.fillRect(mx+2,my+2,32,24);
+  if (on) {
+    cx.fillStyle = agent.color+'18'; cx.fillRect(mx+2,my+2,32,24);
+    const lns = screenLines(DEFS.findIndex(d=>d.id===agent.id));
+    lns.forEach((lw,i) => {
+      cx.fillStyle = i===0 ? agent.color+'CC' : (i===1 ? '#FFFFFF55' : '#FFFFFF33');
+      cx.fillRect(mx+4, my+4+i*4, lw, 1.5);
+    });
+    // glow
+    const g = cx.createRadialGradient(mx+18,my+14,1,mx+18,my+14,34);
+    g.addColorStop(0, agent.color+'1A'); g.addColorStop(1,'transparent');
+    cx.fillStyle=g; cx.fillRect(mx-10,my-10,56,48);
+  }
+  // store click zone
+  agent._mz = {x:mx, y:my, w:36, h:28};
+
+  // name label
+  cx.font = 'bold 9px Courier New'; cx.textAlign = 'center';
+  cx.fillStyle = '#00000099';
+  cx.fillText(agent.name, x+iw/2+1, y+h-9);
+  cx.fillStyle = agent.color;
+  cx.fillText(agent.name, x+iw/2, y+h-10);
+  if (agent.star) {
+    cx.font = '11px serif'; cx.textAlign = 'right';
+    cx.fillStyle = '#FFD700'; cx.fillText('★', x+w-6, y+13);
+  }
+
+  // chair (below desk)
+  const chy = y + h - 2;
+  cx.fillStyle = C.chair; cx.fillRect(x+iw/2-14,chy,28,14);
+  cx.fillStyle = C.chairHi; cx.fillRect(x+iw/2-14,chy,28,3);
+}
+
+function drawChar(c) {
+  const {x,y,color,dark,state,angle} = c;
+  const R = 11;
+  // shadow
+  cx.fillStyle = 'rgba(0,0,0,.22)';
+  cx.beginPath(); cx.ellipse(x+2,y+4,R,R*.5,0,0,Math.PI*2); cx.fill();
+  // body
+  const bg = cx.createRadialGradient(x-3,y-3,1,x,y,R);
+  bg.addColorStop(0,color); bg.addColorStop(1,dark);
+  cx.fillStyle=bg; cx.beginPath(); cx.arc(x,y,R,0,Math.PI*2); cx.fill();
+  // direction dot
+  cx.fillStyle='rgba(255,255,255,.4)';
+  cx.beginPath(); cx.arc(x+Math.cos(angle)*7, y+Math.sin(angle)*7, 2.5, 0, Math.PI*2); cx.fill();
+  // eyes
+  const el={x:x+Math.cos(angle-.5)*6, y:y+Math.sin(angle-.5)*6};
+  const er={x:x+Math.cos(angle+.5)*6, y:y+Math.sin(angle+.5)*6};
+  cx.fillStyle='#fff';
+  cx.beginPath(); cx.arc(el.x,el.y,2.5,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.arc(er.x,er.y,2.5,0,Math.PI*2); cx.fill();
+  cx.fillStyle='#111';
+  cx.beginPath(); cx.arc(el.x+Math.cos(angle)*.7,el.y+Math.sin(angle)*.7,1.5,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.arc(er.x+Math.cos(angle)*.7,er.y+Math.sin(angle)*.7,1.5,0,Math.PI*2); cx.fill();
+  // coffee cup
+  if (state==='at_coffee') {
+    cx.fillStyle='#7B3010'; cx.fillRect(x+9,y-7,10,9);
+    cx.fillStyle='#3A1500'; cx.fillRect(x+10,y-6,8,5);
+    const t=Date.now()/1000;
+    cx.fillStyle='rgba(200,200,200,.7)';
+    cx.beginPath(); cx.arc(x+14+Math.sin(t*4)*.8,y-12,1.8,0,Math.PI*2); cx.fill();
+  }
+  // walk animation
+  if (state==='to_coffee'||state==='back') {
+    const la=angle+Math.PI/2, lo=Math.sin(Date.now()/90)*5;
+    cx.fillStyle=dark;
+    cx.beginPath(); cx.arc(x+Math.cos(la)*lo,y+R+Math.sin(la)*lo,2.5,0,Math.PI*2); cx.fill();
+    cx.beginPath(); cx.arc(x-Math.cos(la)*lo,y+R-Math.sin(la)*lo,2.5,0,Math.PI*2); cx.fill();
+  }
+}
+
+function drawTag(c) {
+  cx.font='bold 8px Courier New'; cx.textAlign='center';
+  const tw=cx.measureText(c.name).width+6;
+  cx.fillStyle='rgba(0,0,0,.75)'; cx.fillRect(c.x-tw/2,c.y-27,tw,11);
+  cx.fillStyle=c.color; cx.fillText(c.name,c.x,c.y-18);
+}
+
+// ── Main render ────────────────────────────────────────────
+function render() {
+  cx.clearRect(0,0,W,H);
+  drawFloor();
+  drawMeetTable();
+  PLANTS.forEach(p=>drawPlant(p.x,p.y));
+  drawCoffee();
+  // desks sorted front-to-back
+  [...chars].sort((a,b)=>a.desk.y-b.desk.y).forEach(c=>drawDesk(c));
+  // characters sorted front-to-back
+  const sc=[...chars].sort((a,b)=>a.y-b.y);
+  sc.forEach(c=>drawChar(c));
+  sc.forEach(c=>drawTag(c));
+}
+
+function loop() { update(); render(); requestAnimationFrame(loop); }
+loop();
+
+// ── Click / hover ──────────────────────────────────────────
+cv.addEventListener('mousemove', e => {
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)*(W/r.width), py=(e.clientY-r.top)*(H/r.height);
+  cv.style.cursor = chars.some(c=>c._mz && px>=c._mz.x && px<=c._mz.x+c._mz.w && py>=c._mz.y && py<=c._mz.y+c._mz.h) ? 'pointer':'default';
+});
+
+cv.addEventListener('click', e => {
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)*(W/r.width), py=(e.clientY-r.top)*(H/r.height);
+  for(const c of chars) {
+    if(c._mz && px>=c._mz.x && px<=c._mz.x+c._mz.w && py>=c._mz.y && py<=c._mz.y+c._mz.h) {
+      openModal(c); return;
+    }
+  }
+});
+
+// ── Modal ──────────────────────────────────────────────────
+function openModal(agent) {
+  const box=document.getElementById('mbox');
+  box.style.setProperty('--ac', agent.color);
+  document.getElementById('mtitle').textContent = (agent.icon||'')+' '+agent.name;
+  const d = apiData[agent.id]||{};
+  document.getElementById('mrole').textContent = d.role||agent.id;
+
+  let btext='EN SERVICE';
+  if(agent.state==='at_coffee'||agent.state==='to_coffee') btext='☕ PAUSE CAFÉ';
+  else if(agent.state==='back') btext='↩ RETOUR AU POSTE';
+  document.getElementById('mbadge').textContent=btext;
+
+  const rows=(d.info||[]).map(r=>`
+    <div class="mrow">
+      <span class="mlbl">${r.label}</span>
+      <span class="mval${r.highlight?' hi':''}">${r.value}</span>
+    </div>`).join('');
+  document.getElementById('mrows').innerHTML=rows||'<div class="mrow"><span class="mlbl">Aucune donnée</span></div>';
+
+  const logs=(d.logs||[]);
+  document.getElementById('mlog').innerHTML=logs.map((l,i)=>{
+    const t=typeof l==='string'?l:(l.text||'');
+    const cl=typeof l==='object'&&l.type?l.type:'';
+    return `<div class="ll ${cl}">${t}</div>`;
+  }).join('')||'<div class="ll">Aucune activité</div>';
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
+
+// ── API fetch ──────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const res=await fetch('/api/agents');
+    if(!res.ok) return;
+    apiData=await res.json();
+    marketQuiet=apiData._market_quiet||false;
+    const s=apiData._stats;
+    if(s) {
+      document.getElementById('hbal').textContent=s.balance.toFixed(2)+'€';
+      document.getElementById('hpnl').textContent=(s.pnl>=0?'+':'')+s.pnl.toFixed(2)+'€';
+      document.getElementById('hpnl').className='val '+(s.pnl>=0?'pos':'neg');
+      document.getElementById('hpos').textContent=s.positions;
+      document.getElementById('hwr').textContent=s.win_rate+'%';
+      document.getElementById('hwr').className='val '+(s.win_rate>=50?'pos':'neg');
+    }
+  } catch(e) { console.error('[Office] API error',e); }
+}
+
+fetchData();
+setInterval(fetchData, 60000);
+document.getElementById('btnRef').addEventListener('click',e=>{e.preventDefault();fetchData();});
+</script>
+</body>
+</html>
