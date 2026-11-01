@@ -71,6 +71,11 @@
     .terminal .t0 { color: #9B30FF; }
     .terminal .tbuy { color: #00FFCC; }
     .terminal .tsell { color: #FF4488; }
+    .dstat-card { background: #08000F; border: 1px solid #2A0045; border-radius: 4px; padding: 10px 12px; }
+    .dstat-lbl { font-size: 8px; color: #440055; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .dstat-val { font-size: 18px; font-weight: bold; color: #CC88FF; }
+    .dstat-val.pos { color: #00FFCC; }
+    .dstat-val.neg { color: #FF2D78; }
 
     /* SCROLLBAR */
     ::-webkit-scrollbar { width: 3px; }
@@ -169,6 +174,62 @@
     </div>
   </div>
 
+</div>
+
+<!-- DASHBOARD MODAL (clic écran TV) -->
+<div class="overlay" id="dash-modal" onclick="if(event.target===this)closeDash()">
+  <div class="mbox" id="dash-box" style="width:min(680px,95vw);background:#06000E;border:1px solid #9B30FF;box-shadow:0 0 40px #9B30FF44;">
+    <button class="mclose" onclick="closeDash()">✕</button>
+    <div style="font-size:13px;font-weight:bold;color:#FF2D78;letter-spacing:3px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #2A0045;">◈ TABLEAU DE BORD — PERFORMANCE</div>
+
+    <!-- Stats grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
+      <div class="dstat-card">
+        <div class="dstat-lbl">Balance totale</div>
+        <div class="dstat-val pos" id="d-balance">—</div>
+      </div>
+      <div class="dstat-card">
+        <div class="dstat-lbl">P&L total</div>
+        <div class="dstat-val" id="d-pnl">—</div>
+      </div>
+      <div class="dstat-card">
+        <div class="dstat-lbl">Capital investi</div>
+        <div class="dstat-val" id="d-invested">—</div>
+      </div>
+      <div class="dstat-card">
+        <div class="dstat-lbl">Win Rate</div>
+        <div class="dstat-val" id="d-winrate">—</div>
+      </div>
+      <div class="dstat-card">
+        <div class="dstat-lbl">Trades gagnés</div>
+        <div class="dstat-val pos" id="d-wins">—</div>
+      </div>
+      <div class="dstat-card">
+        <div class="dstat-lbl">Trades perdus</div>
+        <div class="dstat-val neg" id="d-losses">—</div>
+      </div>
+    </div>
+
+    <!-- P&L bar -->
+    <div style="margin-bottom:18px;">
+      <div style="font-size:8px;color:#440055;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Répartition gains / pertes</div>
+      <div style="background:#0A0015;border-radius:3px;height:14px;overflow:hidden;border:1px solid #1A0030;">
+        <div id="d-bar" style="height:100%;background:linear-gradient(90deg,#00FFCC,#00C878);width:50%;transition:width .5s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;margin-top:3px;">
+        <span style="color:#00FFCC" id="d-bar-left">—</span>
+        <span style="color:#FF2D78" id="d-bar-right">—</span>
+      </div>
+    </div>
+
+    <!-- Positions ouvertes -->
+    <div style="font-size:8px;color:#440055;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Positions ouvertes</div>
+    <div id="d-positions" style="background:#02000A;border:1px solid #1A0028;border-radius:3px;padding:8px;font-size:9px;max-height:130px;overflow-y:auto;color:#553366;line-height:1.8;">—</div>
+
+    <!-- Derniers trades -->
+    <div style="font-size:8px;color:#440055;text-transform:uppercase;letter-spacing:2px;margin:12px 0 6px;">Derniers trades fermés</div>
+    <div id="d-trades" style="background:#02000A;border:1px solid #1A0028;border-radius:3px;padding:8px;font-size:9px;max-height:110px;overflow-y:auto;color:#553366;line-height:1.8;">—</div>
+  </div>
 </div>
 
 <!-- AGENT MODAL -->
@@ -290,9 +351,15 @@ canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   const cx = (e.clientX - rect.left) * (W / rect.width);
   const cy = (e.clientY - rect.top)  * (H / rect.height);
-  // Convert to world coords
   const wx = (cx - panX) / scale;
   const wy = (cy - panY) / scale;
+
+  // Check TV screen click (parallelogram around SC corners)
+  if (tvZone && pointInParallelogram(wx, wy, tvZone)) {
+    openDash();
+    return;
+  }
+
   for (const t of clickTargets) {
     if (wx >= t.x && wx <= t.x + t.w && wy >= t.y && wy <= t.y + t.h) {
       openModal(t.agent);
@@ -300,6 +367,91 @@ canvas.addEventListener('click', e => {
     }
   }
 });
+
+// Check if point is inside the screen parallelogram
+function pointInParallelogram(px, py, zone) {
+  const {x1,y1,x2,y2,x3,y3,x4,y4} = zone;
+  function cross(ax,ay,bx,by,cx,cy){ return (bx-ax)*(cy-ay)-(by-ay)*(cx-ax); }
+  const s1 = cross(x1,y1,x2,y2,px,py) > 0;
+  const s2 = cross(x2,y2,x3,y3,px,py) > 0;
+  const s3 = cross(x3,y3,x4,y4,px,py) > 0;
+  const s4 = cross(x4,y4,x1,y1,px,py) > 0;
+  return s1===s2 && s2===s3 && s3===s4;
+}
+
+let tvZone = null; // set after SC is computed
+
+// Dashboard modal
+async function openDash() {
+  document.getElementById('dash-modal').classList.add('open');
+  // Fetch live data
+  try {
+    const r = await fetch('/api/agents');
+    const data = await r.json();
+    const s = data._stats || {};
+    const t = data.trader || {};
+
+    const balance = s.balance ?? {{ balance | default(1000) }};
+    const pnl = s.pnl ?? {{ pnl | default(0) }};
+    const invested = (t.info || []).find(i=>i.label==='Balance liquide') ? 0 : 0;
+    const winrate = s.win_rate ?? {{ win_rate | default(0) }};
+    const totalTrades = s.positions !== undefined ? s.positions : 0;
+
+    document.getElementById('d-balance').textContent = balance.toFixed(2) + '€';
+    document.getElementById('d-balance').className = 'dstat-val ' + (balance >= 1000 ? 'pos' : 'neg');
+
+    document.getElementById('d-pnl').textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '€';
+    document.getElementById('d-pnl').className = 'dstat-val ' + (pnl >= 0 ? 'pos' : 'neg');
+
+    document.getElementById('d-winrate').textContent = winrate + '%';
+    document.getElementById('d-winrate').className = 'dstat-val ' + (winrate >= 50 ? 'pos' : 'neg');
+
+    // Get trader info
+    const tInfo = t.info || [];
+    const invRow = tInfo.find(i => i.label === 'Investi') || tInfo.find(i => i.label.includes('nvesti'));
+    document.getElementById('d-invested').textContent = invRow ? invRow.value : '—';
+
+    const winsRow = tInfo.find(i => i.label === 'Trades gagnés' || i.label.includes('Win'));
+    const totalRow = tInfo.find(i => i.label === 'Trades fermés' || i.label.includes('total'));
+    const totalT = totalRow ? parseInt(totalRow.value) || 0 : 0;
+    const winsT = Math.round(totalT * winrate / 100);
+    const lossesT = totalT - winsT;
+    document.getElementById('d-wins').textContent = winsT + ' (' + winrate + '%)';
+    document.getElementById('d-losses').textContent = lossesT;
+
+    // Bar
+    const barPct = Math.max(0, Math.min(100, winrate));
+    document.getElementById('d-bar').style.width = barPct + '%';
+    document.getElementById('d-bar-left').textContent = '▲ Gains ' + winrate + '%';
+    document.getElementById('d-bar-right').textContent = (100 - winrate) + '% Pertes ▼';
+
+    // Positions
+    const posLogs = (t.logs || []).filter(l => (l.text||l).includes('OPEN') || (l.text||l).includes('POS'));
+    const posHtml = posLogs.length
+      ? posLogs.map(l => `<div style="color:#AA44FF">${l.text||l}</div>`).join('')
+      : '<div style="color:#440055">Aucune position ouverte</div>';
+    document.getElementById('d-positions').innerHTML = posHtml;
+
+    // Closed trades
+    const closedLogs = (t.logs || []).filter(l => (l.text||l).includes('FERMÉ'));
+    const closedHtml = closedLogs.length
+      ? closedLogs.map(l => {
+          const txt = l.text||l;
+          const isPos = txt.includes('+') || (!txt.includes('-'));
+          return `<div style="color:${isPos?'#00FFCC':'#FF2D78'}">${txt}</div>`;
+        }).join('')
+      : '<div style="color:#440055">Aucun trade fermé récent</div>';
+    document.getElementById('d-trades').innerHTML = closedHtml;
+
+  } catch(err) {
+    document.getElementById('d-balance').textContent = '{{ "%.2f"|format(balance | default(1000)) }}€';
+    document.getElementById('d-pnl').textContent = '{{ "%+.2f"|format(pnl | default(0)) }}€';
+  }
+}
+
+function closeDash() {
+  document.getElementById('dash-modal').classList.remove('open');
+}
 
 // ─────────────────────────────────────────────────────────────
 // BINANCE API
@@ -637,6 +789,14 @@ function drawPriceScreen() {
     br: iso(17, 0, 0.3),
     tl: iso(5,  0, 4.2),
     tr: iso(17, 0, 4.2)
+  };
+
+  // Store TV zone for click detection
+  tvZone = {
+    x1: SC.tl.x+TW/2, y1: SC.tl.y-TH/2,
+    x2: SC.tr.x+TW/2, y2: SC.tr.y-TH/2,
+    x3: SC.br.x+TW/2, y3: SC.br.y-TH/2,
+    x4: SC.bl.x+TW/2, y4: SC.bl.y-TH/2,
   };
 
   // Screen background
