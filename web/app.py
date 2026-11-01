@@ -4,7 +4,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, render_template, jsonify
 import sqlite3
-import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -35,20 +34,36 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-def fetch_chart_data(coin_id):
+def fetch_chart_ohlc(coin_id):
     try:
         db = get_db()
         rows = db.execute("""
-            SELECT price, recorded_at FROM market_data
-            WHERE coin = ?
-            ORDER BY recorded_at DESC
-            LIMIT 336
+            SELECT price, volume_24h, recorded_at FROM market_data
+            WHERE coin = ? AND recorded_at >= datetime('now', '-3 days')
+            ORDER BY recorded_at ASC
         """, (coin_id,)).fetchall()
         db.close()
-        rows = list(reversed(rows))
-        return [{"t": r["recorded_at"], "p": r["price"]} for r in rows]
-    except:
-        pass
+
+        if not rows:
+            return []
+
+        candles = {}
+        for row in rows:
+            dt = datetime.fromisoformat(row["recorded_at"])
+            dt = dt.replace(second=0, microsecond=0)
+            dt = dt.replace(minute=(dt.minute // 5) * 5)
+            ts = int(dt.timestamp())
+            p = row["price"]
+            if ts not in candles:
+                candles[ts] = {"time": ts, "open": p, "high": p, "low": p, "close": p, "volume": row["volume_24h"] or 0}
+            else:
+                candles[ts]["high"] = max(candles[ts]["high"], p)
+                candles[ts]["low"] = min(candles[ts]["low"], p)
+                candles[ts]["close"] = p
+
+        return sorted(candles.values(), key=lambda x: x["time"])
+    except Exception as e:
+        print(f"[Chart] Erreur: {e}")
     return []
 
 @app.route("/")
@@ -114,7 +129,7 @@ def position_detail(pos_id):
         take_profit_price = pos["buy_price"] * 1.20
         stop_loss_price = pos["buy_price"] * 0.92
 
-    chart_data = fetch_chart_data(coin)
+    chart_data = fetch_chart_ohlc(coin)
 
     return render_template("position.html",
         pos=pos, coin=coin, is_short=is_short,

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="refresh" content="30">
 <title>{{ coin.upper() }} — Détail position</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; }
@@ -34,6 +34,7 @@
   .level .lbl { font-size: 11px; color: #7d8590; margin-bottom: 4px; }
   .level .val { font-size: 16px; font-weight: 700; }
   .chart-container { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+  #priceChart { width: 100%; height: 420px; }
 </style>
 </head>
 <body>
@@ -99,50 +100,67 @@
 
 {% if chart_data %}
 <div class="section">
-  <h2>Graphique 7 jours</h2>
+  <h2>Graphique — bougies 5 min</h2>
   <div class="chart-container">
-    <canvas id="priceChart" height="80"></canvas>
+    <div id="priceChart"></div>
   </div>
 </div>
 <script>
-const data = {{ chart_data | tojson }};
-const labels = data.map(d => { const dt = new Date(d.t); return dt.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) + ' ' + dt.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); });
-const prices = data.map(d => d.p);
+const ohlc = {{ chart_data | tojson }};
 const entryPrice = {{ pos.buy_price }};
 const tpPrice = {{ take_profit_price }};
 const slPrice = {{ stop_loss_price }};
 
-new Chart(document.getElementById('priceChart'), {
-  type: 'line',
-  data: {
-    labels: labels,
-    datasets: [{
-      label: '{{ coin.upper() }}',
-      data: prices,
-      borderColor: '#58a6ff',
-      backgroundColor: 'rgba(88,166,255,0.05)',
-      borderWidth: 2,
-      pointRadius: 0,
-      tension: 0.3,
-      fill: true,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      annotation: { annotations: {
-        entry: { type: 'line', yMin: entryPrice, yMax: entryPrice, borderColor: '#58a6ff', borderWidth: 1, borderDash: [4,4] },
-        tp: { type: 'line', yMin: tpPrice, yMax: tpPrice, borderColor: '#3fb950', borderWidth: 1, borderDash: [4,4] },
-        sl: { type: 'line', yMin: slPrice, yMax: slPrice, borderColor: '#f85149', borderWidth: 1, borderDash: [4,4] },
-      }}
-    },
-    scales: {
-      x: { display: false },
-      y: { grid: { color: '#21262d' }, ticks: { color: '#7d8590' } }
-    }
-  }
+const container = document.getElementById('priceChart');
+
+const chart = LightweightCharts.createChart(container, {
+  layout: { background: { color: '#161b22' }, textColor: '#c9d1d9' },
+  grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  rightPriceScale: { borderColor: '#30363d' },
+  timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+  height: 420,
 });
+
+// Bougies
+const candleSeries = chart.addCandlestickSeries({
+  upColor: '#3fb950', downColor: '#f85149',
+  borderVisible: false,
+  wickUpColor: '#3fb950', wickDownColor: '#f85149',
+});
+candleSeries.setData(ohlc);
+
+// Niveaux TP / Entrée / SL
+candleSeries.createPriceLine({ price: tpPrice, color: '#3fb950', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '🎯 TP' });
+candleSeries.createPriceLine({ price: entryPrice, color: '#58a6ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '📍 Entrée' });
+candleSeries.createPriceLine({ price: slPrice, color: '#f85149', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '🛑 SL' });
+
+// Volume (bas du graphique)
+const volSeries = chart.addHistogramSeries({
+  priceFormat: { type: 'volume' },
+  priceScaleId: 'vol',
+});
+chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+volSeries.setData(ohlc.map(d => ({
+  time: d.time,
+  value: d.volume,
+  color: d.close >= d.open ? 'rgba(63,185,80,0.25)' : 'rgba(248,81,73,0.25)',
+})));
+
+// MA20
+const closes = ohlc.map(d => d.close);
+const ma20 = [];
+for (let i = 19; i < ohlc.length; i++) {
+  const avg = closes.slice(i - 19, i + 1).reduce((a, b) => a + b, 0) / 20;
+  ma20.push({ time: ohlc[i].time, value: avg });
+}
+if (ma20.length) {
+  const maSeries = chart.addLineSeries({ color: '#e3b341', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  maSeries.setData(ma20);
+}
+
+chart.timeScale().fitContent();
+window.addEventListener('resize', () => chart.applyOptions({ width: container.clientWidth }));
 </script>
 {% endif %}
 
