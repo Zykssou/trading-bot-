@@ -4,30 +4,35 @@ from datetime import datetime
 from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS, COIN_PROFILES
 from database.db import save_market_data, save_signal
 
-def fetch_coin_data(coin_id):
+def fetch_all_coins_data(coin_ids):
     try:
-        url = f"{COINGECKO_API_URL}/coins/{coin_id}"
+        url = f"{COINGECKO_API_URL}/coins/markets"
         params = {
-            "localization": "false",
-            "tickers": "false",
-            "community_data": "false",
-            "developer_data": "false"
+            "vs_currency": "usd",
+            "ids": ",".join(coin_ids),
+            "order": "market_cap_desc",
+            "per_page": 250,
+            "page": 1,
+            "price_change_percentage": "1h,24h"
         }
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=15)
         if response.status_code == 200:
-            data = response.json()
-            market = data["market_data"]
-            return {
-                "coin": coin_id,
-                "price": market["current_price"].get("usd", 0),
-                "volume_24h": market["total_volume"].get("usd", 0),
-                "price_change_1h": market["price_change_percentage_1h_in_currency"].get("usd", 0),
-                "price_change_24h": market["price_change_percentage_24h"] or 0,
-                "market_cap": market["market_cap"].get("usd", 0),
-            }
+            results = {}
+            for coin in response.json():
+                results[coin["id"]] = {
+                    "coin": coin["id"],
+                    "price": coin["current_price"] or 0,
+                    "volume_24h": coin["total_volume"] or 0,
+                    "price_change_1h": (coin.get("price_change_percentage_1h_in_currency") or 0),
+                    "price_change_24h": (coin.get("price_change_percentage_24h") or 0),
+                    "market_cap": coin["market_cap"] or 0,
+                }
+            return results
+        else:
+            print(f"[Scanner] API erreur {response.status_code}")
     except Exception as e:
-        print(f"[Scanner] Erreur pour {coin_id}: {e}")
-    return None
+        print(f"[Scanner] Erreur fetch_all: {e}")
+    return {}
 
 def fetch_trending_coins():
     try:
@@ -108,10 +113,13 @@ def run_scanner(previous_data_store=None, extra_coins=None):
     # Coins de la config + coins des positions ouvertes (pour pouvoir les fermer)
     all_coins = list(set(TRACKED_COINS + (extra_coins or [])))
 
+    # 1 seule requête pour tous les coins
+    all_data = fetch_all_coins_data(all_coins)
+
     for coin in all_coins:
-        data = fetch_coin_data(coin)
+        data = all_data.get(coin)
         if not data:
-            time.sleep(1)
+            print(f"  {coin.upper():<15} — données indisponibles")
             continue
 
         save_market_data(
@@ -133,7 +141,6 @@ def run_scanner(previous_data_store=None, extra_coins=None):
             results.append({**data, **analysis})
 
         previous_data_store[coin] = data
-        time.sleep(1.5)  # évite de se faire bloquer par l'API
 
     print(f"[Scanner] Scan terminé — {len(results)} signal(s) détecté(s)")
     return results, previous_data_store
