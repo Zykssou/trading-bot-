@@ -130,6 +130,12 @@ def run():
                 if price <= 0:
                     continue
 
+                # Seulement sur les coins qu'on connaît
+                from config import BUYABLE_COINS
+                if coin not in BUYABLE_COINS:
+                    print(f"[Orchestrateur] SHORT {coin} ignoré — coin non autorisé")
+                    continue
+
                 open_positions = get_open_positions()
                 open_coins = [p[1] for p in open_positions]
                 if coin in open_coins:

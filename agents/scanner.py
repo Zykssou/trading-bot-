@@ -105,9 +105,8 @@ def run_scanner(previous_data_store=None):
 
     results = []
 
-    # Coins suivis + trending
-    trending = fetch_trending_coins()
-    all_coins = list(set(TRACKED_COINS + trending[:5]))
+    # Seulement les coins de la config — pas de trending aléatoire
+    all_coins = TRACKED_COINS
 
     for coin in all_coins:
         data = fetch_coin_data(coin)
