@@ -11,6 +11,7 @@ from agents.execution import execute_buy, execute_sell, execute_short
 from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily, report_short_open
 from config import SCAN_INTERVAL_SECONDS, LARGE_CAPS, MEME_COINS
 from database.db import get_open_positions, update_position_price
+from agents.multi_trader import setup_traders, run_all_traders
 
 def run():
     print("=" * 50)
@@ -19,6 +20,7 @@ def run():
     print("=" * 50)
 
     init_db()
+    setup_traders()
 
     previous_data_store = {}
     cycle = 0
@@ -165,6 +167,9 @@ def run():
                         stop_loss=stop_loss_short,
                         take_profit=take_profit_short
                     )
+
+        # Multi-traders — 25 stratégies différentes
+        run_all_traders(scanner_signals, current_prices, btc_change_1h=btc_change)
 
         # Rapport toutes les 10 cycles
         if cycle % 10 == 0:

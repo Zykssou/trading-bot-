@@ -280,5 +280,14 @@ def api_agents():
     db.close()
     return jsonify(data)
 
+@app.route("/api/traders")
+def api_traders():
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from agents.multi_trader import get_traders_summary
+        return jsonify(get_traders_summary())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(debug=True)
