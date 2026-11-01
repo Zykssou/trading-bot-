@@ -34,18 +34,21 @@ body {
 .stat .val.pos { color: #4ecdc4; }
 .stat .val.neg { color: #ff6b6b; }
 .nav { display: flex; gap: 12px; align-items: center; }
-.nav a {
+.nav-btn {
   color: #45b7d1;
   text-decoration: none;
   font-size: 11px;
   padding: 4px 10px;
   border: 1px solid #1a3a4a;
   border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
   transition: background 0.2s;
 }
-.nav a:hover { background: #1a3a4a; }
+.nav-btn:hover { background: #1a3a4a; }
 .canvas-wrap {
-  margin: 12px auto;
+  margin: 10px auto;
   position: relative;
   cursor: default;
 }
@@ -54,12 +57,19 @@ canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+#hint {
+  font-size: 9px;
+  color: #334;
+  text-align: center;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
 /* MODALS */
 .modal-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.82);
   z-index: 1000;
   justify-content: center;
   align-items: center;
@@ -143,45 +153,6 @@ canvas {
   line-height: 1.6;
 }
 .terminal .ts { color: #334; }
-/* Big screen modal */
-.stats-grid-big {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
-@media (max-width: 500px) { .stats-grid-big { grid-template-columns: 1fr 1fr; } }
-.stat-card {
-  background: #060810;
-  border: 1px solid #1a2a3a;
-  border-radius: 4px;
-  padding: 10px;
-  text-align: center;
-}
-.stat-card .lbl { font-size: 9px; color: #556; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.stat-card .val { font-size: 16px; font-weight: bold; }
-table.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-  margin-bottom: 16px;
-}
-table.data-table th {
-  text-align: left;
-  padding: 6px 8px;
-  background: #060810;
-  color: #556;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 9px;
-  border-bottom: 1px solid #1a2a3a;
-}
-table.data-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid #0d1520;
-  color: #ccd;
-}
-table.data-table tr:hover td { background: #0d1520; }
 .section-title {
   font-size: 10px;
   text-transform: uppercase;
@@ -190,18 +161,6 @@ table.data-table tr:hover td { background: #0d1520; }
   margin: 16px 0 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid #1a2a3a;
-}
-.pulse { animation: pulse 2s infinite; }
-@keyframes pulse {
-  0%,100% { opacity:1; }
-  50% { opacity:0.5; }
-}
-#hint {
-  font-size: 9px;
-  color: #334;
-  text-align: center;
-  margin-bottom: 6px;
-  letter-spacing: 1px;
 }
 </style>
 </head>
@@ -221,7 +180,7 @@ table.data-table tr:hover td { background: #0d1520; }
     </div>
     <div class="stat">
       <div class="lbl">Positions</div>
-      <div class="val" id="hdr-positions">{{ positions | default('—') }}</div>
+      <div class="val" id="hdr-positions">{{ positions|length if positions else '—' }}</div>
     </div>
     <div class="stat">
       <div class="lbl">Win Rate</div>
@@ -229,22 +188,21 @@ table.data-table tr:hover td { background: #0d1520; }
     </div>
   </div>
   <div class="nav">
-    <a href="/dashboard">← Dashboard</a>
-    <a href="#" onclick="fetchData();return false;">↻ Actualiser</a>
+    <button class="nav-btn" onclick="fetchData()">↻ Actualiser</button>
   </div>
 </div>
 
-<!-- CANVAS HINT -->
-<div id="hint">CLIQUEZ SUR UN MONITEUR OU L'ÉCRAN TV POUR LES DONNÉES EN DIRECT</div>
+<!-- HINT -->
+<div id="hint">CLIQUEZ SUR UN MONITEUR POUR LES DÉTAILS AGENT · ÉCRAN TV → DASHBOARD</div>
 
-<!-- ISOMETRIC CANVAS -->
+<!-- CANVAS -->
 <div class="canvas-wrap">
   <canvas id="c" width="1000" height="580"></canvas>
 </div>
 
 <!-- AGENT MODAL -->
 <div class="modal-overlay" id="agent-modal">
-  <div class="modal">
+  <div class="modal" id="agent-modal-box">
     <button class="modal-close" onclick="closeModals()">✕</button>
     <div class="modal-title" id="am-title">AGENT</div>
     <div class="agent-header">
@@ -261,327 +219,308 @@ table.data-table tr:hover td { background: #0d1520; }
   </div>
 </div>
 
-<!-- BIG SCREEN MODAL -->
-<div class="modal-overlay" id="bigscreen-modal">
-  <div class="modal" style="width:min(750px,96vw);">
-    <button class="modal-close" onclick="closeModals()">✕</button>
-    <div class="modal-title">◈ SALLE DE MARCHÉ — DONNÉES EN DIRECT</div>
-    <div class="stats-grid-big">
-      <div class="stat-card">
-        <div class="lbl">Balance</div>
-        <div class="val pos" id="bm-balance">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="lbl">P&amp;L Total</div>
-        <div class="val" id="bm-pnl">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="lbl">Positions</div>
-        <div class="val" id="bm-positions">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="lbl">Win Rate</div>
-        <div class="val pos" id="bm-winrate">—</div>
-      </div>
-    </div>
-    <div class="section-title">POSITIONS OUVERTES</div>
-    <table class="data-table">
-      <thead><tr><th>Symbole</th><th>Côté</th><th>Taille</th><th>Entrée</th><th>P&amp;L</th><th>Agent</th></tr></thead>
-      <tbody id="bm-positions-table"><tr><td colspan="6" style="color:#334;text-align:center;">Chargement…</td></tr></tbody>
-    </table>
-    <div class="section-title">TRADES RÉCENTS</div>
-    <table class="data-table">
-      <thead><tr><th>Heure</th><th>Symbole</th><th>Action</th><th>Prix</th><th>P&amp;L</th></tr></thead>
-      <tbody id="bm-trades-table"><tr><td colspan="5" style="color:#334;text-align:center;">Chargement…</td></tr></tbody>
-    </table>
-    <div class="section-title">SIGNAUX RÉCENTS</div>
-    <table class="data-table">
-      <thead><tr><th>Heure</th><th>Agent</th><th>Signal</th><th>Symbole</th><th>Conf.</th></tr></thead>
-      <tbody id="bm-signals-table"><tr><td colspan="5" style="color:#334;text-align:center;">Chargement…</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
 <script>
 (function(){
 'use strict';
 
-// ─────────────────────────────────────────────
-//  CONFIG
-// ─────────────────────────────────────────────
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const W = 1000, H = 580;
-const TILE_W = 64, TILE_H = 32;
-const WALL_H = 52;
-const offsetX = 500, offsetY = 68;
-const GRID_W = 16, GRID_H = 11;
-const WALK_SPEED = 0.035;
-const COFFEE_POS = { gx: 14.2, gy: 5.0 };
+const TILE_W = 64, TILE_H = 32, WALL_H = 48;
+const OX = 500, OY = 80;
+const GRID_W = 16, GRID_H = 10;
+const WALK_SPEED = 0.04;
 
 function toScreen(gx, gy, gz) {
   gz = gz || 0;
   return {
-    x: offsetX + (gx - gy) * (TILE_W / 2),
-    y: offsetY + (gx + gy) * (TILE_H / 2) - gz * (WALL_H * 0.77)
+    x: OX + (gx - gy) * TILE_W / 2,
+    y: OY + (gx + gy) * TILE_H / 2 - gz * WALL_H
   };
 }
 
-// ─────────────────────────────────────────────
-//  AGENT DEFINITIONS
-// ─────────────────────────────────────────────
+// ─── AGENT DEFINITIONS ───────────────────────────────────────────────────────
+// 6 desks: Row1 gx=3,gy=2 / gx=6,gy=2 / gx=9,gy=2
+//          Row2 gx=3,gy=6 / gx=6,gy=6 / gx=9,gy=6
 const AGENT_DEFS = [
-  { id:'scanner',   name:'Scanner',    role:'Market Scanner',   color:'#4ECDC4', deskGx:2,  deskGy:2  },
-  { id:'analyste',  name:'Analyste',   role:'Data Analyst',     color:'#45B7D1', deskGx:6,  deskGy:2  },
-  { id:'trader',    name:'★ Trader',   role:'Head Trader',      color:'#FFD700', deskGx:10, deskGy:2, star: true },
-  { id:'risk',      name:'Risk Mgr',   role:'Risk Manager',     color:'#FF6B6B', deskGx:2,  deskGy:7  },
-  { id:'portfolio', name:'Portfolio',  role:'Portfolio Mgr',    color:'#98E8C0', deskGx:6,  deskGy:7  },
-  { id:'reporter',  name:'Reporter',   role:'Report Analyst',   color:'#C3A0E8', deskGx:10, deskGy:7  }
+  { id:'scanner',   name:'Scanner',   role:'Market Scanner',  shirtColor:'#4ECDC4', pants:'#2A3A4A', skin:'#F4C794', deskGx:3, deskGy:2 },
+  { id:'analyste',  name:'Analyste',  role:'Data Analyst',    shirtColor:'#45B7D1', pants:'#1A2A3A', skin:'#C68642', deskGx:6, deskGy:2 },
+  { id:'trader',    name:'★ Trader',  role:'Head Trader',     shirtColor:'#FFD700', pants:'#1A1A2A', skin:'#F4C794', deskGx:9, deskGy:2 },
+  { id:'risk',      name:'Risk Mgr',  role:'Risk Manager',    shirtColor:'#FF6B6B', pants:'#2A1A1A', skin:'#C68642', deskGx:3, deskGy:6 },
+  { id:'portfolio', name:'Portfolio', role:'Portfolio Mgr',   shirtColor:'#98E8C0', pants:'#1A2A1A', skin:'#F4C794', deskGx:6, deskGy:6 },
+  { id:'reporter',  name:'Reporter',  role:'Report Analyst',  shirtColor:'#C3A0E8', pants:'#2A1A3A', skin:'#C68642', deskGx:9, deskGy:6 }
 ];
 
-// ─────────────────────────────────────────────
-//  STATE
-// ─────────────────────────────────────────────
+// Destination positions
+const COFFEE_POS = { gx: 14.0, gy: 5.0 };
+const WATER_POS  = { gx: 1.2,  gy: 5.0 };
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
 let apiData = null;
 let marketQuiet = false;
 let t = 0;
+let tvZone = { x: 0, y: 0, w: 0, h: 0 };
 
-// Character states: 'working' | 'to_coffee' | 'at_coffee' | 'back'
-const chars = AGENT_DEFS.map(def => ({
+const chars = AGENT_DEFS.map((def, idx) => ({
   ...def,
   state: 'working',
-  cx: def.deskGx,       // current float position
+  cx: def.deskGx,
   cy: def.deskGy,
-  tx: def.deskGx,       // target
+  tx: def.deskGx,
   ty: def.deskGy,
-  coffeeTimer: 0,
-  _mz: null,            // monitor click zone {x,y,w,h} in canvas coords
+  breakTimer: 0,
+  breakCooldown: 400 + idx * 120 + Math.floor(Math.random() * 200),
+  destination: 'coffee',
+  _mz: null,
   liveData: null
 }));
 
-// Desk monitor click zones stored per-agent
-const tvZone = { x: 0, y: 0, w: 0, h: 0 };
-
-// ─────────────────────────────────────────────
-//  CANVAS
-// ─────────────────────────────────────────────
+// ─── CANVAS ──────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
-// ─────────────────────────────────────────────
-//  ISO DRAWING PRIMITIVES
-// ─────────────────────────────────────────────
-function isoTop(cx, cy, w, d, fill, stroke) {
-  // cx,cy = screen center of top face, w = tile widths, d = tile depths
-  const hw = (w * TILE_W) / 2;
-  const hd = (d * TILE_H) / 2;
+// ─── ISO PRIMITIVES ──────────────────────────────────────────────────────────
+function isoTile(p, fillTop, fillLeft, fillRight, tileDepth) {
+  // tileDepth: pixel height of the side faces (floor edge)
+  const hw = TILE_W / 2, hh = TILE_H / 2;
+  // Top face
+  ctx.beginPath();
+  ctx.moveTo(p.x,      p.y - hh);
+  ctx.lineTo(p.x + hw, p.y);
+  ctx.lineTo(p.x,      p.y + hh);
+  ctx.lineTo(p.x - hw, p.y);
+  ctx.closePath();
+  ctx.fillStyle = fillTop;
+  ctx.fill();
+  if (tileDepth > 0) {
+    // Left side face
+    ctx.beginPath();
+    ctx.moveTo(p.x - hw, p.y);
+    ctx.lineTo(p.x,      p.y + hh);
+    ctx.lineTo(p.x,      p.y + hh + tileDepth);
+    ctx.lineTo(p.x - hw, p.y + tileDepth);
+    ctx.closePath();
+    ctx.fillStyle = fillLeft;
+    ctx.fill();
+    // Right side face
+    ctx.beginPath();
+    ctx.moveTo(p.x,      p.y + hh);
+    ctx.lineTo(p.x + hw, p.y);
+    ctx.lineTo(p.x + hw, p.y + tileDepth);
+    ctx.lineTo(p.x,      p.y + hh + tileDepth);
+    ctx.closePath();
+    ctx.fillStyle = fillRight;
+    ctx.fill();
+  }
+}
+
+// Generic isometric box: top face centered at (cx,cy) in screen space
+// tw = width in tiles, td = depth in tiles, h = pixel height
+function isoBox(cx, cy, tw, td, h, topColor, leftColor, rightColor, outlineColor) {
+  const hw = tw * TILE_W / 2;
+  const hd = td * TILE_H / 2;
+  // Top face
   ctx.beginPath();
   ctx.moveTo(cx,      cy - hd);
   ctx.lineTo(cx + hw, cy);
   ctx.lineTo(cx,      cy + hd);
   ctx.lineTo(cx - hw, cy);
   ctx.closePath();
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 0.5; ctx.stroke(); }
-}
-
-function isoLeftFace(cx, cy, w, d, h, fill) {
-  // Left face (viewer's left = the face going back-left)
-  const hw = (w * TILE_W) / 2;
-  const hd = (d * TILE_H) / 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - hw, cy);
-  ctx.lineTo(cx,      cy + hd);
-  ctx.lineTo(cx,      cy + hd + h);
-  ctx.lineTo(cx - hw, cy + h);
-  ctx.closePath();
-  ctx.fillStyle = fill;
+  ctx.fillStyle = topColor;
   ctx.fill();
+  if (outlineColor) { ctx.strokeStyle = outlineColor; ctx.lineWidth = 0.5; ctx.stroke(); }
+  if (h > 0) {
+    // Left face
+    ctx.beginPath();
+    ctx.moveTo(cx - hw, cy);
+    ctx.lineTo(cx,      cy + hd);
+    ctx.lineTo(cx,      cy + hd + h);
+    ctx.lineTo(cx - hw, cy + h);
+    ctx.closePath();
+    ctx.fillStyle = leftColor;
+    ctx.fill();
+    if (outlineColor) { ctx.strokeStyle = outlineColor; ctx.lineWidth = 0.5; ctx.stroke(); }
+    // Right face
+    ctx.beginPath();
+    ctx.moveTo(cx,      cy + hd);
+    ctx.lineTo(cx + hw, cy);
+    ctx.lineTo(cx + hw, cy + h);
+    ctx.lineTo(cx,      cy + hd + h);
+    ctx.closePath();
+    ctx.fillStyle = rightColor;
+    ctx.fill();
+    if (outlineColor) { ctx.strokeStyle = outlineColor; ctx.lineWidth = 0.5; ctx.stroke(); }
+  }
 }
 
-function isoRightFace(cx, cy, w, d, h, fill) {
-  const hw = (w * TILE_W) / 2;
-  const hd = (d * TILE_H) / 2;
-  ctx.beginPath();
-  ctx.moveTo(cx,      cy + hd);
-  ctx.lineTo(cx + hw, cy);
-  ctx.lineTo(cx + hw, cy + h);
-  ctx.lineTo(cx,      cy + hd + h);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-}
-
-// ─────────────────────────────────────────────
-//  FLOOR
-// ─────────────────────────────────────────────
+// ─── FLOOR ───────────────────────────────────────────────────────────────────
 function drawFloor() {
-  // Sort tiles back to front
   const tiles = [];
-  for (let gy = 1; gy < GRID_H; gy++) {
-    for (let gx = 1; gx < GRID_W; gx++) {
-      tiles.push({ gx, gy });
+  for (let gy = 1; gy <= GRID_H; gy++) {
+    for (let gx = 1; gx <= GRID_W; gx++) {
+      tiles.push({ gx, gy, _d: gx + gy });
     }
   }
-  tiles.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
-
+  tiles.sort((a, b) => a._d - b._d);
   tiles.forEach(({ gx, gy }) => {
     const p = toScreen(gx, gy);
-    const isEven = (gx + gy) % 2 === 0;
-    // Wood planks alternating
-    const topFill  = isEven ? '#5a3e28' : '#6b4a2e';
-    const leftFill = isEven ? '#3d2a1a' : '#4a3020';
-    const rightFill= isEven ? '#4a3222' : '#57392a';
-    isoTop(p.x, p.y, 1, 1, topFill, '#3a2510');
-    // Tiny height for floor tile edge
-    ctx.beginPath();
-    ctx.moveTo(p.x - TILE_W/2, p.y);
-    ctx.lineTo(p.x,             p.y + TILE_H/2);
-    ctx.lineTo(p.x,             p.y + TILE_H/2 + 2);
-    ctx.lineTo(p.x - TILE_W/2, p.y + 2);
-    ctx.closePath();
-    ctx.fillStyle = leftFill;
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(p.x,             p.y + TILE_H/2);
-    ctx.lineTo(p.x + TILE_W/2, p.y);
-    ctx.lineTo(p.x + TILE_W/2, p.y + 2);
-    ctx.lineTo(p.x,             p.y + TILE_H/2 + 2);
-    ctx.closePath();
-    ctx.fillStyle = rightFill;
-    ctx.fill();
+    const even = (gx + gy) % 2 === 0;
+    const top   = even ? '#C4A882' : '#B89A74';
+    const left  = even ? '#9A7A54' : '#8E7050';
+    const right = even ? '#AA8860' : '#9C7E58';
+    isoTile(p, top, left, right, 3);
   });
 }
 
-// ─────────────────────────────────────────────
-//  WALLS
-// ─────────────────────────────────────────────
+// ─── WALLS ───────────────────────────────────────────────────────────────────
 function drawWalls() {
-  // Back wall (gy=0) — draw from left to right (gx=0..GRID_W)
-  // Each slab is one tile wide
+  // Back wall gy=0, from gx=0 to gx=GRID_W
+  // We draw wall slabs: the visible face is the +y face of each slab
   for (let gx = 0; gx <= GRID_W; gx++) {
-    const p = toScreen(gx, 0);
-    // Wall slab — left face from viewer
-    const wallH = WALL_H;
-    // Top of slab
-    isoTop(p.x, p.y, 1, 0.4, '#1e2a3a', null);
-    // Front face of back wall (gy=0 means viewer sees the +y face)
+    const p  = toScreen(gx,     1);  // floor tile at gy=1
+    const p0 = toScreen(gx,     0);  // wall base gy=0
+    // Wall slab front face (+y direction = viewer side)
+    // Top points: wall top, bottom points: floor level
+    const wallTop1x = OX + (gx     - 0) * TILE_W / 2;
+    const wallTop1y = OY + (gx     + 0) * TILE_H / 2 - WALL_H;
+    const wallTop2x = OX + ((gx+1) - 0) * TILE_W / 2;
+    const wallTop2y = OY + ((gx+1) + 0) * TILE_H / 2 - WALL_H;
+    const wallBot1x = wallTop1x;
+    const wallBot1y = wallTop1y + WALL_H;
+    const wallBot2x = wallTop2x;
+    const wallBot2y = wallTop2y + WALL_H;
+
+    // Front face of back wall (the angled slab face visible to viewer)
     ctx.beginPath();
-    ctx.moveTo(p.x,             p.y + TILE_H * 0.2);
-    ctx.lineTo(p.x + TILE_W/2,  p.y - TILE_H * 0.3);
-    ctx.lineTo(p.x + TILE_W/2,  p.y - TILE_H * 0.3 + wallH);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2 + wallH);
+    ctx.moveTo(wallTop1x, wallTop1y);
+    ctx.lineTo(wallTop2x, wallTop2y);
+    ctx.lineTo(wallBot2x, wallBot2y);
+    ctx.lineTo(wallBot1x, wallBot1y);
     ctx.closePath();
-    ctx.fillStyle = '#141e2c';
+    ctx.fillStyle = '#2A2A35';
     ctx.fill();
-    ctx.strokeStyle = '#0d1520';
+    ctx.strokeStyle = '#1a1a28';
     ctx.lineWidth = 0.5;
     ctx.stroke();
-    // Left face (viewer's left)
+
+    // Top cap
     ctx.beginPath();
-    ctx.moveTo(p.x - TILE_W/2,  p.y + TILE_H * 0.3);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2 + wallH);
-    ctx.lineTo(p.x - TILE_W/2,  p.y + TILE_H * 0.3 + wallH);
+    ctx.moveTo(wallTop1x,            wallTop1y);
+    ctx.lineTo(wallTop2x,            wallTop2y);
+    ctx.lineTo(wallTop2x - TILE_W/2, wallTop2y + TILE_H/2);
+    ctx.lineTo(wallTop1x - TILE_W/2, wallTop1y + TILE_H/2);
     ctx.closePath();
-    ctx.fillStyle = '#0d1828';
+    ctx.fillStyle = '#3a3a48';
     ctx.fill();
+
+    // Stone texture lines
+    if (gx < GRID_W) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 0.5;
+      for (let row = 0; row < 3; row++) {
+        const fy = wallTop1y + (WALL_H / 3) * (row + 1);
+        const fy2 = wallTop2y + (WALL_H / 3) * (row + 1);
+        ctx.beginPath();
+        ctx.moveTo(wallTop1x, fy);
+        ctx.lineTo(wallTop2x, fy2);
+        ctx.stroke();
+      }
+    }
   }
 
-  // Left wall (gx=0) — draw from top to bottom (gy=0..GRID_H)
+  // Left wall gx=0, from gy=0 to gy=GRID_H
   for (let gy = 0; gy <= GRID_H; gy++) {
-    const p = toScreen(0, gy);
-    const wallH = WALL_H;
-    isoTop(p.x, p.y, 0.4, 1, '#1a2636', null);
-    // Right face (viewer's right)
+    const wallTop1x = OX + (0 - gy    ) * TILE_W / 2;
+    const wallTop1y = OY + (0 + gy    ) * TILE_H / 2 - WALL_H;
+    const wallTop2x = OX + (0 - (gy+1)) * TILE_W / 2;
+    const wallTop2y = OY + (0 + (gy+1)) * TILE_H / 2 - WALL_H;
+
+    // Left face of left wall (facing +x direction)
     ctx.beginPath();
-    ctx.moveTo(p.x,             p.y + TILE_H * 0.2);
-    ctx.lineTo(p.x + TILE_W/2,  p.y - TILE_H * 0.3);
-    ctx.lineTo(p.x + TILE_W/2,  p.y - TILE_H * 0.3 + wallH);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2 + wallH);
+    ctx.moveTo(wallTop1x,            wallTop1y);
+    ctx.lineTo(wallTop1x + TILE_W/2, wallTop1y + TILE_H/2);
+    ctx.lineTo(wallTop1x + TILE_W/2, wallTop1y + TILE_H/2 + WALL_H);
+    ctx.lineTo(wallTop1x,            wallTop1y + WALL_H);
     ctx.closePath();
-    ctx.fillStyle = '#161e30';
+    ctx.fillStyle = '#252530';
     ctx.fill();
-    ctx.strokeStyle = '#0d1520';
+    ctx.strokeStyle = '#1a1a28';
     ctx.lineWidth = 0.5;
     ctx.stroke();
-    // Front face
+
+    // Top cap
     ctx.beginPath();
-    ctx.moveTo(p.x - TILE_W/2,  p.y + TILE_H * 0.3);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2);
-    ctx.lineTo(p.x,             p.y + TILE_H * 0.2 + wallH);
-    ctx.lineTo(p.x - TILE_W/2,  p.y + TILE_H * 0.3 + wallH);
+    ctx.moveTo(wallTop1x,            wallTop1y);
+    ctx.lineTo(wallTop1x + TILE_W/2, wallTop1y + TILE_H/2);
+    ctx.lineTo(wallTop2x + TILE_W/2, wallTop2y + TILE_H/2);
+    ctx.lineTo(wallTop2x,            wallTop2y);
     ctx.closePath();
-    ctx.fillStyle = '#101828';
+    ctx.fillStyle = '#353545';
     ctx.fill();
+
+    // Stone texture
+    if (gy < GRID_H) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 0.5;
+      for (let row = 0; row < 3; row++) {
+        const fy1 = wallTop1y + (WALL_H / 3) * (row + 1);
+        const fy2 = wallTop1y + TILE_H/2 + (WALL_H / 3) * (row + 1);
+        ctx.beginPath();
+        ctx.moveTo(wallTop1x,            fy1);
+        ctx.lineTo(wallTop1x + TILE_W/2, fy2);
+        ctx.stroke();
+      }
+    }
   }
 
-  // Ceiling edge strip along back wall top
-  for (let gx = 0; gx < GRID_W; gx++) {
-    const p = toScreen(gx, 0);
-    const p2 = toScreen(gx + 1, 0);
-    const wallH = WALL_H;
-    // Ceiling beam
+  // Neon accent strip along base of back wall
+  const glowAlpha = 0.5 + 0.3 * Math.sin(t * 0.03);
+  for (let gx = 1; gx < GRID_W; gx++) {
+    const x1 = OX + (gx     - 0) * TILE_W / 2;
+    const x2 = OX + ((gx+1) - 0) * TILE_W / 2;
+    const y1 = OY + (gx     + 0) * TILE_H / 2 - 2;
+    const y2 = OY + ((gx+1) + 0) * TILE_H / 2 - 2;
     ctx.beginPath();
-    ctx.moveTo(p.x,  p.y - wallH * 0.8);
-    ctx.lineTo(p2.x, p2.y - wallH * 0.8);
-    ctx.lineTo(p2.x, p2.y - wallH * 0.8 - 3);
-    ctx.lineTo(p.x,  p.y - wallH * 0.8 - 3);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x2, y2 + 2);
+    ctx.lineTo(x1, y1 + 2);
     ctx.closePath();
-    ctx.fillStyle = '#0a1020';
-    ctx.fill();
-  }
-
-  // Ceiling edge strip along left wall
-  for (let gy = 0; gy < GRID_H; gy++) {
-    const p = toScreen(0, gy);
-    const p2 = toScreen(0, gy + 1);
-    const wallH = WALL_H;
-    ctx.beginPath();
-    ctx.moveTo(p.x,  p.y - wallH * 0.9);
-    ctx.lineTo(p2.x, p2.y - wallH * 0.9);
-    ctx.lineTo(p2.x, p2.y - wallH * 0.9 - 3);
-    ctx.lineTo(p.x,  p.y - wallH * 0.9 - 3);
-    ctx.closePath();
-    ctx.fillStyle = '#0a1020';
+    ctx.fillStyle = `rgba(78,205,196,${glowAlpha * 0.35})`;
     ctx.fill();
   }
 }
 
-// ─────────────────────────────────────────────
-//  TV SCREEN ON BACK WALL
-// ─────────────────────────────────────────────
+// ─── TV SCREEN ───────────────────────────────────────────────────────────────
 function drawTVScreen() {
-  // Screen spans gx=4..12, mounted on back wall gy=0
-  // Compute screen corners in screen space
-  const left  = toScreen(4, 0);
-  const right = toScreen(12, 0);
-  const wallH = WALL_H;
+  // Mounted on back wall (gy=0), gx=4 to gx=12
+  // The back wall front face runs along gx direction at gy=0
+  // Points on the wall face: for a given gx at gy=0, the right-facing wall surface
+  // x = OX + gx*TILE_W/2, y goes from (OY + gx*TILE_H/2 - WALL_H) to (OY + gx*TILE_H/2)
 
-  // Screen body: a parallelogram on the wall face
-  // Face runs from left.x,left.y+wallH*0.2 to right.x,right.y-wallH*0.3 (top)
-  // and adds height downward
-  const screenH = 105;
-  const yOff = wallH * 0.1; // top of screen from wall top
-  const frameW = 5;
+  const gxL = 4, gxR = 12;
+  const x1 = OX + gxL * TILE_W / 2;
+  const y1 = OY + gxL * TILE_H / 2 - WALL_H;
+  const x2 = OX + gxR * TILE_W / 2;
+  const y2 = OY + gxR * TILE_H / 2 - WALL_H;
 
-  // Screen coordinates (right-face of wall, going right = +gx direction from gy=0)
-  const sx1 = left.x  + TILE_W / 2;
-  const sy1 = left.y  - TILE_H * 0.3;
-  const sx2 = right.x + TILE_W / 2;
-  const sy2 = right.y - TILE_H * 0.3;
+  const screenH = 90;
+  const marginT = 5;
+  const frameW  = 4;
 
-  const scrTop1 = sy1 + yOff;
-  const scrTop2 = sy2 + yOff;
-  const scrBot1 = scrTop1 + screenH;
-  const scrBot2 = scrTop2 + screenH;
+  // Corners of the screen (parallelogram on the wall face)
+  const tlx = x1, tly = y1 + marginT;
+  const trx = x2, try_ = y2 + marginT;
+  const blx = x1, bly = y1 + marginT + screenH;
+  const brx = x2, bry = y2 + marginT + screenH;
 
-  // Frame (black border)
+  // Black frame
   ctx.beginPath();
-  ctx.moveTo(sx1 - frameW, scrTop1 - frameW);
-  ctx.lineTo(sx2 + frameW, scrTop2 - frameW);
-  ctx.lineTo(sx2 + frameW, scrBot2 + frameW);
-  ctx.lineTo(sx1 - frameW, scrBot1 + frameW);
+  ctx.moveTo(tlx - frameW, tly - frameW);
+  ctx.lineTo(trx + frameW, try_ - frameW);
+  ctx.lineTo(brx + frameW, bry + frameW);
+  ctx.lineTo(blx - frameW, bly + frameW);
   ctx.closePath();
-  ctx.fillStyle = '#050810';
+  ctx.fillStyle = '#0a0a12';
   ctx.fill();
   ctx.strokeStyle = '#4ecdc4';
   ctx.lineWidth = 1.5;
@@ -589,569 +528,609 @@ function drawTVScreen() {
 
   // Screen surface
   ctx.beginPath();
-  ctx.moveTo(sx1, scrTop1);
-  ctx.lineTo(sx2, scrTop2);
-  ctx.lineTo(sx2, scrBot2);
-  ctx.lineTo(sx1, scrBot1);
+  ctx.moveTo(tlx, tly);
+  ctx.lineTo(trx, try_);
+  ctx.lineTo(brx, bry);
+  ctx.lineTo(blx, bly);
   ctx.closePath();
-  ctx.fillStyle = '#020810';
+  ctx.fillStyle = '#030814';
   ctx.fill();
 
-  // Screen glow gradient
-  const grad = ctx.createLinearGradient(sx1, scrTop1, sx2, scrBot2);
-  grad.addColorStop(0, 'rgba(78,205,196,0.07)');
-  grad.addColorStop(0.5, 'rgba(69,183,209,0.04)');
-  grad.addColorStop(1, 'rgba(78,205,196,0.07)');
-  ctx.fillStyle = grad;
+  // Screen glow
+  const g = ctx.createLinearGradient(tlx, tly, trx, bry);
+  g.addColorStop(0,   'rgba(78,205,196,0.08)');
+  g.addColorStop(0.5, 'rgba(69,183,209,0.04)');
+  g.addColorStop(1,   'rgba(78,205,196,0.08)');
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(sx1, scrTop1);
-  ctx.lineTo(sx2, scrTop2);
-  ctx.lineTo(sx2, scrBot2);
-  ctx.lineTo(sx1, scrBot1);
+  ctx.moveTo(tlx, tly); ctx.lineTo(trx, try_);
+  ctx.lineTo(brx, bry); ctx.lineTo(blx, bly);
   ctx.closePath();
   ctx.fill();
 
-  // Scanlines
+  // Scanlines clip
   ctx.save();
   ctx.beginPath();
-  ctx.moveTo(sx1, scrTop1);
-  ctx.lineTo(sx2, scrTop2);
-  ctx.lineTo(sx2, scrBot2);
-  ctx.lineTo(sx1, scrBot1);
+  ctx.moveTo(tlx, tly); ctx.lineTo(trx, try_);
+  ctx.lineTo(brx, bry); ctx.lineTo(blx, bly);
   ctx.closePath();
   ctx.clip();
-  for (let scanY = scrTop1; scanY < scrBot1 + 100; scanY += 4) {
-    const ratio = (scanY - scrTop1) / (scrBot1 - scrTop1);
-    const xLeft = sx1 + (sx2 - sx1) * ratio;
-    const xRight = sx1 + TILE_W * 4 + (sx2 - sx1) * ratio;
+  const screenW = x2 - x1;
+  for (let scanY = tly; scanY < bly + screenH; scanY += 3) {
+    const ratio = (scanY - tly) / screenH;
+    const lx = tlx + (blx - tlx) * ratio;
     ctx.beginPath();
-    ctx.moveTo(xLeft, scanY);
-    ctx.lineTo(xRight, scanY + 2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.moveTo(lx,            scanY);
+    ctx.lineTo(lx + screenW,  scanY + (try_ - tly));
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
   ctx.restore();
 
-  // Live data text on screen
-  // Title
+  // Draw text on screen with isometric shear transform
   const stats = apiData ? apiData._stats : null;
-  const balance   = stats ? stats.balance   : '{{ balance }}';
-  const pnl       = stats ? stats.pnl       : '{{ pnl }}';
-  const positions = stats ? stats.positions : '{{ positions }}';
-  const winRate   = stats ? stats.win_rate  : '{{ win_rate }}';
+  const balance   = stats ? (stats.balance   || '—') : '{{ balance }}';
+  const pnl       = stats ? (stats.pnl       || '—') : '{{ pnl }}';
+  const positions = stats ? (stats.positions || '—') : '{{ positions|length }}';
+  const winRate   = stats ? (stats.win_rate  || '—') : '{{ win_rate }}';
 
-  // Center X of screen, adjust for isometric shear
-  // We draw text in transformed space
   ctx.save();
-  // Approximate the shear by using canvas transform
-  const screenCenterX = (sx1 + sx2) / 2;
-  const screenCenterY = (scrTop1 + scrBot1) / 2;
-  // Skew to match isometric wall face
-  const shearFactor = (scrTop2 - scrTop1) / (sx2 - sx1);
-  ctx.transform(1, shearFactor, 0, 1, 0, scrTop1 - shearFactor * sx1);
+  // Shear transform: the wall face is a parallelogram slanted down-right
+  // slope = (try_ - tly) / (trx - tlx)
+  const slope = (try_ - tly) / (trx - tlx);
+  // Apply transform: y' = y + slope*(x - tlx) + tly  → use ctx.transform
+  ctx.transform(1, slope, 0, 1, 0, tly - slope * tlx);
+
+  const sx = tlx, sw = trx - tlx;
 
   // Title bar
-  ctx.fillStyle = 'rgba(78,205,196,0.12)';
-  ctx.fillRect(sx1, -5, sx2 - sx1, 18);
+  ctx.fillStyle = 'rgba(78,205,196,0.14)';
+  ctx.fillRect(sx, 0, sw, 16);
   ctx.fillStyle = '#4ecdc4';
-  ctx.font = 'bold 9px Courier New';
+  ctx.font = 'bold 8px Courier New';
   ctx.textAlign = 'center';
-  ctx.fillText('◈ TRADING FLOOR', (sx1 + sx2) / 2, 8);
+  ctx.fillText('◈  TRADING FLOOR', sx + sw / 2, 11);
 
-  // Stats rows
-  const rowY = [22, 42, 62, 82];
+  // Divider
+  ctx.strokeStyle = 'rgba(78,205,196,0.3)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(sx + 6, 18); ctx.lineTo(sx + sw - 6, 18);
+  ctx.stroke();
+
   const labels = ['BALANCE', 'P&L', 'POSITIONS', 'WIN RATE'];
   const values = [balance, pnl, String(positions), winRate];
-  const colors = ['#e0e0e0', typeof pnl === 'string' && pnl.startsWith('-') ? '#ff6b6b' : '#4ecdc4', '#45b7d1', '#98e8c0'];
-
+  const vColors = [
+    '#e0e0e0',
+    String(pnl).startsWith('-') ? '#ff6b6b' : '#4ecdc4',
+    '#45b7d1',
+    '#98e8c0'
+  ];
+  const rowH = (screenH - 22) / 4;
   labels.forEach((lbl, i) => {
-    const midX = (sx1 + sx2) / 2;
-    ctx.fillStyle = '#334455';
-    ctx.font = '7px Courier New';
+    const rowY = 22 + i * rowH;
+    ctx.fillStyle = '#445566';
+    ctx.font = '6px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText(lbl, midX, rowY[i]);
-    ctx.fillStyle = colors[i];
-    ctx.font = 'bold 10px Courier New';
-    ctx.fillText(String(values[i]), midX, rowY[i] + 11);
-    // Separator line
-    if (i < labels.length - 1) {
-      ctx.beginPath();
-      ctx.moveTo(sx1 + 8, rowY[i] + 16);
-      ctx.lineTo(sx2 - 8, rowY[i] + 16);
-      ctx.strokeStyle = 'rgba(78,205,196,0.15)';
+    ctx.fillText(lbl, sx + sw / 2, rowY + 6);
+    ctx.fillStyle = vColors[i];
+    ctx.font = 'bold 9px Courier New';
+    ctx.fillText(String(values[i]), sx + sw / 2, rowY + 17);
+    if (i < 3) {
+      ctx.strokeStyle = 'rgba(78,205,196,0.12)';
       ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(sx + 8, rowY + 21); ctx.lineTo(sx + sw - 8, rowY + 21);
       ctx.stroke();
     }
   });
 
+  // "CLICK" hint
+  const pulseA = 0.5 + 0.5 * Math.sin(t * 0.06);
+  ctx.globalAlpha = pulseA;
+  ctx.fillStyle = '#4ecdc4';
+  ctx.font = '7px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText('▶ DASHBOARD', sx + 4, screenH - 2);
+  ctx.globalAlpha = 1;
+
   ctx.restore();
 
-  // Store TV click zone (approximate screen-space rect)
-  const tvX = Math.min(sx1, sx2) - frameW;
-  const tvY = Math.min(scrTop1, scrTop2) - frameW;
-  const tvW = Math.abs(sx2 - sx1) + frameW * 2 + TILE_W;
-  const tvH = screenH + frameW * 2;
-  tvZone.x = tvX;
-  tvZone.y = tvY;
-  tvZone.w = tvW;
-  tvZone.h = tvH;
-
-  // Corner indicators (clickable hint)
-  ctx.fillStyle = 'rgba(78,205,196,0.4)';
-  ctx.font = '8px Courier New';
-  ctx.textAlign = 'left';
-  ctx.fillText('▶ CLICK', sx1 + 2, scrTop1 + 5);
+  // Store TV click zone
+  tvZone.x = tlx - frameW;
+  tvZone.y = Math.min(tly, try_) - frameW;
+  tvZone.w = (trx - tlx) + frameW * 2;
+  tvZone.h = screenH + frameW * 2 + Math.abs(try_ - tly);
 }
 
-// ─────────────────────────────────────────────
-//  DESK
-// ─────────────────────────────────────────────
+// ─── DESK (BLACK) ────────────────────────────────────────────────────────────
 function drawDesk(agent) {
   const p = toScreen(agent.deskGx, agent.deskGy);
-  const deskW = agent.star ? 2.2 : 1.8;
-  const deskD = 1.2;
-  const deskH = 14;
+  const dw = 2.0, dd = 1.4, dh = 14;
 
-  // Desk top face
-  isoTop(p.x, p.y - deskH, deskW, deskD, '#8B6914', '#5a3f10');
-  // Desk left face
-  isoLeftFace(p.x, p.y - deskH, deskW, deskD, deskH, '#5A3F10');
-  // Desk right face
-  isoRightFace(p.x, p.y - deskH, deskW, deskD, deskH, '#6B4E10');
+  // Desk surface centered at p, top face at height dh above floor
+  const cx = p.x, cy = p.y - dh;
+  isoBox(cx, cy, dw, dd, dh, '#1A1A1A', '#111111', '#0D0D0D', '#2a2a2a');
 
-  // Draw monitor on desk
+  // Chair between character and desk (slightly in front of desk)
+  const chairP = toScreen(agent.deskGx, agent.deskGy + 0.7);
+  const chCx = chairP.x, chCy = chairP.y - 10;
+  // Chair seat
+  isoBox(chCx, chCy, 0.55, 0.55, 8, '#1A1A1A', '#111111', '#0D0D0D', '#2a2a2a');
+  // Chair back (thin rectangle upward)
+  ctx.fillStyle = '#181818';
+  ctx.fillRect(chCx - 14, chCy - 22, 28, 14);
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(chCx - 13, chCy - 21, 26, 12);
+
+  // Monitor on desk
   const mX = p.x;
-  const mY = p.y - deskH - 22;
-  const mW = 20;
-  const mH = 15;
-  const agentColor = agent.color;
-  const glowColor = agent.state === 'working' ? agentColor : '#334';
+  const mY = p.y - dh - 20;
+  const mW = 22, mH = 16;
+  const isWorking = agent.state === 'working';
+  const agentColor = agent.shirtColor;
 
   // Monitor stand
-  ctx.fillStyle = '#2a2a2a';
-  ctx.fillRect(mX - 2, mY + mH, 4, 6);
-  ctx.fillRect(mX - 5, mY + mH + 6, 10, 2);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(mX - 2, mY + mH, 4, 7);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(mX - 6, mY + mH + 6, 12, 2);
 
   // Monitor frame
-  ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(mX - mW/2 - 2, mY - 2, mW + 4, mH + 4);
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(mX - mW / 2 - 2, mY - 2, mW + 4, mH + 4);
 
-  // Monitor screen glow
-  if (agent.state === 'working') {
-    const glowAlpha = 0.3 + 0.2 * Math.sin(t * 0.05 + agent.deskGx);
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 8;
+  // Monitor screen
+  if (isWorking) {
+    const gAlpha = 0.25 + 0.15 * Math.sin(t * 0.07 + agent.deskGx * 0.7);
+    ctx.shadowColor = agentColor;
+    ctx.shadowBlur = 6 + gAlpha * 4;
   }
-  ctx.fillStyle = agent.state === 'working' ? '#0a1a2a' : '#080808';
-  ctx.fillRect(mX - mW/2, mY, mW, mH);
+  ctx.fillStyle = isWorking ? '#0a1520' : '#080810';
+  ctx.fillRect(mX - mW / 2, mY, mW, mH);
   ctx.shadowBlur = 0;
 
-  // Screen content (tiny text lines)
-  if (agent.state === 'working') {
-    const lineColors = ['#4ecdc4', '#45b7d1', '#98e8c0'];
-    for (let line = 0; line < 3; line++) {
-      ctx.fillStyle = lineColors[line % 3];
-      const lineW = 6 + Math.floor(Math.random() * 0 + (line === 0 ? 14 : 10));
-      ctx.fillRect(mX - mW/2 + 2, mY + 2 + line * 4, lineW, 2);
+  // Screen content lines
+  if (isWorking) {
+    const lc = [agentColor, '#45b7d1', '#98e8c0'];
+    for (let ln = 0; ln < 3; ln++) {
+      ctx.fillStyle = lc[ln % 3];
+      const lw = 8 + (ln === 0 ? 10 : 6) + Math.floor(((t + agent.deskGx * 7 + ln * 13) % 7));
+      ctx.fillRect(mX - mW / 2 + 2, mY + 2 + ln * 4, Math.min(lw, mW - 4), 2);
     }
   }
 
   // Store monitor click zone
-  agent._mz = { x: mX - mW/2 - 2, y: mY - 2, w: mW + 4, h: mH + 4 };
+  agent._mz = { x: mX - mW / 2 - 2, y: mY - 2, w: mW + 4, h: mH + 4 };
 
-  // Agent name tag above desk
-  ctx.font = '8px Courier New';
+  // Name tag
+  ctx.font = 'bold 7px Courier New';
   ctx.textAlign = 'center';
   ctx.fillStyle = agentColor;
-  const nameTag = agent.name;
-  ctx.fillText(nameTag, mX, mY - 5);
+  ctx.fillText(agent.name, mX, mY - 6);
 }
 
-// ─────────────────────────────────────────────
-//  CHARACTER SPRITE (isometric pixel art)
-// ─────────────────────────────────────────────
+// ─── HUMAN CHARACTER ─────────────────────────────────────────────────────────
 function drawChar(char) {
-  const sx = offsetX + (char.cx - char.cy) * (TILE_W / 2);
-  const sy = offsetY + (char.cx + char.cy) * (TILE_H / 2);
+  const sx = OX + (char.cx - char.cy) * TILE_W / 2;
+  const sy = OY + (char.cx + char.cy) * TILE_H / 2;
 
-  const walking = (char.state === 'to_coffee' || char.state === 'back');
-  const legSwing = walking ? Math.sin(t * 0.18) * 4 : 0;
+  const walking = (char.state === 'to_coffee' || char.state === 'to_water' || char.state === 'back');
+  const legSwing = walking ? Math.sin(t * 0.18) * 5 : 0;
+  const atBreak  = (char.state === 'at_coffee' || char.state === 'at_water');
+  const working  = (char.state === 'working');
 
   // Shadow
   ctx.save();
-  ctx.globalAlpha = 0.25;
+  ctx.globalAlpha = 0.22;
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.ellipse(sx, sy + 2, 8, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy + 20, 8, 3, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // Legs
-  const legColor = '#2a2a3a';
-  // Left leg
-  ctx.fillStyle = legColor;
-  ctx.fillRect(sx - 5, sy - 6 + legSwing, 4, 7);
-  // Right leg
-  ctx.fillStyle = legColor;
-  ctx.fillRect(sx + 1, sy - 6 - legSwing, 4, 7);
+  const px = char.pants;
+  const sk = char.skin;
+  const sh = char.shirtColor;
 
-  // Torso
-  ctx.fillStyle = char.color;
-  ctx.fillRect(sx - 6, sy - 18, 12, 12);
-  // Torso shading
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(sx - 6, sy - 18, 4, 12);
+  // LEGS
+  if (working) {
+    // Arms stretched forward (working posture — arms out on desk)
+    // Left leg
+    ctx.fillStyle = px;
+    ctx.fillRect(sx - 5, sy + 8, 4, 10);
+    // Right leg
+    ctx.fillStyle = px;
+    ctx.fillRect(sx + 1, sy + 8, 4, 10);
+    // Shoes
+    ctx.fillStyle = '#1a1010';
+    ctx.fillRect(sx - 6, sy + 17, 5, 3);
+    ctx.fillRect(sx + 1, sy + 17, 5, 3);
+  } else {
+    // Left leg
+    ctx.fillStyle = px;
+    ctx.fillRect(sx - 5, sy + 8 + legSwing, 4, 9);
+    // Right leg
+    ctx.fillStyle = px;
+    ctx.fillRect(sx + 1, sy + 8 - legSwing, 4, 9);
+    // Shoes
+    ctx.fillStyle = '#1a1010';
+    ctx.fillRect(sx - 6, sy + 16 + legSwing, 5, 3);
+    ctx.fillRect(sx + 1, sy + 16 - legSwing, 5, 3);
+  }
 
-  // Head
-  const headColor = '#f0c88a';
-  ctx.fillStyle = headColor;
+  // TORSO
+  ctx.fillStyle = sh;
+  ctx.fillRect(sx - 6, sy - 2, 12, 11);
+  // Torso shadow side
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(sx - 6, sy - 2, 4, 11);
+  // Collar
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(sx - 1, sy - 2, 2, 4);
+
+  // ARMS
+  if (working) {
+    // Arms stretched forward/down onto desk
+    ctx.fillStyle = sh;
+    ctx.fillRect(sx - 10, sy, 4, 9);
+    ctx.fillRect(sx + 6,  sy, 4, 9);
+    // Hands on desk
+    ctx.fillStyle = sk;
+    ctx.fillRect(sx - 10, sy + 8, 4, 3);
+    ctx.fillRect(sx + 6,  sy + 8, 4, 3);
+  } else if (atBreak) {
+    // Arms raised holding cup/bottle
+    ctx.fillStyle = sh;
+    ctx.fillRect(sx - 10, sy - 4, 4, 7);
+    ctx.fillRect(sx + 6,  sy - 4, 4, 7);
+    // Hands
+    ctx.fillStyle = sk;
+    ctx.fillRect(sx - 10, sy + 2, 4, 3);
+    ctx.fillRect(sx + 6,  sy + 2, 4, 3);
+  } else {
+    // Normal arms
+    ctx.fillStyle = sh;
+    ctx.fillRect(sx - 10, sy, 4, 8);
+    ctx.fillRect(sx + 6,  sy, 4, 8);
+    // Hands
+    ctx.fillStyle = sk;
+    ctx.fillRect(sx - 10, sy + 7, 4, 3);
+    ctx.fillRect(sx + 6,  sy + 7, 4, 3);
+  }
+
+  // HEAD
+  ctx.fillStyle = sk;
   ctx.beginPath();
-  ctx.ellipse(sx, sy - 23, 6, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy - 9, 5, 6, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Head shading side
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(sx - 2, sy - 9, 2, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   // Hair
-  ctx.fillStyle = '#3a2a1a';
-  ctx.fillRect(sx - 5, sy - 28, 10, 4);
+  ctx.fillStyle = (sk === '#C68642') ? '#2a1a0a' : '#3a2a1a';
+  ctx.fillRect(sx - 5, sy - 16, 10, 5);
+  ctx.beginPath();
+  ctx.arc(sx, sy - 14, 5, Math.PI, 0);
+  ctx.fill();
 
-  // Eyes (tiny)
+  // EYES
   ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(sx - 3, sy - 25, 2, 2);
-  ctx.fillRect(sx + 1, sy - 25, 2, 2);
+  ctx.fillRect(sx - 3, sy - 12, 2, 2);
+  ctx.fillRect(sx + 1, sy - 12, 2, 2);
+  // Eye shine
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillRect(sx - 3, sy - 12, 1, 1);
+  ctx.fillRect(sx + 1, sy - 12, 1, 1);
 
-  // Coffee cup when at coffee machine
+  // MOUTH
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(sx - 2, sy - 7, 4, 1);
+
+  // ACCESSORY: cup when at coffee, bottle when at water
   if (char.state === 'at_coffee') {
+    // Coffee cup
     ctx.fillStyle = '#8B6914';
-    ctx.fillRect(sx + 7, sy - 15, 5, 7);
-    ctx.fillStyle = '#c8702a';
-    ctx.fillRect(sx + 8, sy - 14, 3, 2);
+    ctx.fillRect(sx + 8, sy - 6, 5, 7);
+    ctx.fillStyle = '#5c4010';
+    ctx.fillRect(sx + 9, sy - 5, 3, 5);
+    ctx.fillStyle = '#c86010';
+    ctx.fillRect(sx + 9, sy - 5, 3, 2);
     // Steam
-    const steamAlpha = 0.4 + 0.4 * Math.sin(t * 0.1);
-    ctx.save();
-    ctx.globalAlpha = steamAlpha;
-    ctx.fillStyle = '#eee';
-    ctx.fillRect(sx + 9, sy - 18, 1, 2);
-    ctx.fillRect(sx + 11, sy - 20, 1, 3);
+    const sa = 0.4 + 0.5 * Math.sin(t * 0.12);
+    ctx.save(); ctx.globalAlpha = sa;
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(sx + 10, sy - 10, 1, 3);
+    ctx.fillRect(sx + 12, sy - 12, 1, 4);
     ctx.restore();
+  } else if (char.state === 'at_water') {
+    // Water bottle
+    ctx.fillStyle = '#4090c0';
+    ctx.fillRect(sx + 8, sy - 8, 5, 10);
+    ctx.fillStyle = '#60b0e0';
+    ctx.fillRect(sx + 9, sy - 7, 3, 3);
+    ctx.fillStyle = '#2a7aaa';
+    ctx.fillRect(sx + 8, sy - 9, 5, 2);
   }
 }
 
-// ─────────────────────────────────────────────
-//  COFFEE MACHINE
-// ─────────────────────────────────────────────
-function drawCoffeeMachine(item) {
-  const p = toScreen(item.gx, item.gy);
-  const h = 28;
-  const bH = 6;
+// ─── COFFEE MACHINE ──────────────────────────────────────────────────────────
+function drawCoffeeMachine(gx, gy) {
+  const p = toScreen(gx, gy);
+  const bH = 6, mH = 30;
 
-  // Base / counter
-  isoTop(p.x, p.y - bH, 1.2, 0.8, '#2a3040', '#1a2030');
-  isoLeftFace(p.x, p.y - bH, 1.2, 0.8, bH, '#1a2030');
-  isoRightFace(p.x, p.y - bH, 1.2, 0.8, bH, '#1e2438');
+  // Counter base
+  isoBox(p.x, p.y - bH, 1.2, 0.9, bH, '#2a3040', '#1e2438', '#222c3e', '#1a2030');
 
   // Machine body
   ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(p.x - 14, p.y - bH - h, 28, h);
-  ctx.fillStyle = '#2a2a3a';
-  ctx.fillRect(p.x - 12, p.y - bH - h + 2, 24, h - 4);
-
-  // Coffee brand stripe
+  ctx.fillRect(p.x - 14, p.y - bH - mH, 28, mH);
+  // Front panel
+  ctx.fillStyle = '#242434';
+  ctx.fillRect(p.x - 12, p.y - bH - mH + 2, 24, mH - 4);
+  // Brand stripe
+  ctx.fillStyle = '#4a3010';
+  ctx.fillRect(p.x - 12, p.y - bH - mH + 5, 24, 5);
   ctx.fillStyle = '#8B6914';
-  ctx.fillRect(p.x - 12, p.y - bH - h + 6, 24, 5);
-
-  // Screen/buttons
-  ctx.fillStyle = '#0a1a0a';
-  ctx.fillRect(p.x - 8, p.y - bH - h + 14, 16, 8);
+  ctx.font = 'bold 4px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('BREW', p.x, p.y - bH - mH + 9);
+  // Display screen
+  ctx.fillStyle = '#0a120a';
+  ctx.fillRect(p.x - 9, p.y - bH - mH + 12, 18, 9);
+  const dispA = 0.6 + 0.4 * Math.sin(t * 0.05);
+  ctx.fillStyle = `rgba(78,205,196,${dispA})`;
+  ctx.font = '4px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('READY', p.x, p.y - bH - mH + 19);
+  // Buttons
   ctx.fillStyle = '#4ecdc4';
-  ctx.fillRect(p.x - 7, p.y - bH - h + 15, 4, 3);
+  ctx.beginPath(); ctx.arc(p.x - 6, p.y - bH - mH + 24, 2, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = '#45b7d1';
-  ctx.fillRect(p.x - 1, p.y - bH - h + 15, 4, 3);
-
+  ctx.beginPath(); ctx.arc(p.x,     p.y - bH - mH + 24, 2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath(); ctx.arc(p.x + 6, p.y - bH - mH + 24, 2, 0, Math.PI*2); ctx.fill();
   // Spout
-  ctx.fillStyle = '#333';
-  ctx.fillRect(p.x - 2, p.y - bH - 10, 4, 10);
-
-  // Cup tray
   ctx.fillStyle = '#555';
-  ctx.fillRect(p.x - 8, p.y - bH - 2, 16, 3);
-
+  ctx.fillRect(p.x - 2, p.y - bH - 12, 4, 12);
+  // Cup tray
+  ctx.fillStyle = '#444';
+  ctx.fillRect(p.x - 9, p.y - bH - 2, 18, 3);
   // Label
   ctx.fillStyle = '#8B6914';
   ctx.font = '6px Courier New';
   ctx.textAlign = 'center';
-  ctx.fillText('COFFEE', p.x, p.y - bH - h - 4);
+  ctx.fillText('COFFEE', p.x, p.y - bH - mH - 4);
 }
 
-// ─────────────────────────────────────────────
-//  PLANT
-// ─────────────────────────────────────────────
-function drawPlant(item) {
-  const p = toScreen(item.gx, item.gy);
-  const potH = 12;
-  const swayA = Math.sin(t * 0.03 + item.gx) * 1.5;
+// ─── WATER FOUNTAIN ──────────────────────────────────────────────────────────
+function drawWaterFountain(gx, gy) {
+  const p = toScreen(gx, gy);
+  const bH = 6, fH = 32;
+
+  // Base
+  isoBox(p.x, p.y - bH, 0.9, 0.9, bH, '#1a2838', '#142030', '#18283a', '#1a2a3a');
+
+  // Bottle (large cylinder)
+  ctx.fillStyle = '#3070a0';
+  ctx.fillRect(p.x - 7, p.y - bH - fH, 14, fH);
+  // Bottle highlight
+  ctx.fillStyle = '#60a0d0';
+  ctx.fillRect(p.x - 5, p.y - bH - fH + 2, 4, fH - 4);
+  // Bottle top cap
+  ctx.fillStyle = '#205080';
+  ctx.fillRect(p.x - 6, p.y - bH - fH, 12, 4);
+  // Water level (slightly blue inside)
+  ctx.fillStyle = 'rgba(100,180,240,0.3)';
+  ctx.fillRect(p.x - 6, p.y - bH - fH/2, 12, fH/2);
+  // Dispenser body
+  ctx.fillStyle = '#d0d8e0';
+  ctx.fillRect(p.x - 9, p.y - bH - 12, 18, 12);
+  ctx.fillStyle = '#b0bcc8';
+  ctx.fillRect(p.x - 8, p.y - bH - 11, 16, 10);
+  // Tap
+  ctx.fillStyle = '#4090c0';
+  ctx.fillRect(p.x - 3, p.y - bH - 5, 6, 5);
+  // Water drip animation
+  const drip = ((t * 2) % 30);
+  if (drip < 15) {
+    ctx.fillStyle = 'rgba(100,180,240,0.6)';
+    ctx.fillRect(p.x - 1, p.y - bH - 1 + drip / 3, 2, 2);
+  }
+  // Label
+  ctx.fillStyle = '#60a0d0';
+  ctx.font = '6px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('WATER', p.x, p.y - bH - fH - 4);
+}
+
+// ─── PLANT ───────────────────────────────────────────────────────────────────
+function drawPlant(gx, gy) {
+  const p = toScreen(gx, gy);
+  const potH = 14;
+  const sway = Math.sin(t * 0.025 + gx) * 1.5;
 
   // Pot
-  ctx.fillStyle = '#6B3010';
-  ctx.fillRect(p.x - 7, p.y - potH, 14, potH);
-  ctx.fillStyle = '#8B4010';
-  ctx.fillRect(p.x - 6, p.y - potH, 12, 2);
-
-  // Soil
+  ctx.fillStyle = '#7B4010';
+  ctx.fillRect(p.x - 8, p.y - potH, 16, potH);
+  ctx.fillStyle = '#9B5010';
+  ctx.fillRect(p.x - 9, p.y - potH, 18, 3);
   ctx.fillStyle = '#3a2010';
-  ctx.fillRect(p.x - 6, p.y - potH + 2, 12, 4);
+  ctx.fillRect(p.x - 7, p.y - potH + 3, 14, 4);
 
-  // Stems and leaves
-  const leaves = [
-    { dx: -8 + swayA, dy: -28, w: 12, h: 8, color: '#1a6e30' },
-    { dx:  4 + swayA, dy: -32, w: 10, h: 7, color: '#20843a' },
-    { dx: -4 + swayA, dy: -38, w: 9,  h: 7, color: '#157028' },
-    { dx:  2 + swayA, dy: -24, w: 8,  h: 6, color: '#1a7a2c' },
-  ];
+  // Stem
   ctx.fillStyle = '#0d5020';
-  ctx.fillRect(p.x - 1, p.y - potH - 22, 2, 22);
+  ctx.fillRect(p.x - 1, p.y - potH - 20, 2, 20);
 
+  // Leaves
+  const leaves = [
+    { dx: -10 + sway, dy: -30, rx: 7, ry: 5, color: '#1a6e30', angle: 0.4 },
+    { dx:   6 + sway, dy: -34, rx: 6, ry: 4, color: '#20843a', angle: -0.3 },
+    { dx:  -4 + sway, dy: -40, rx: 7, ry: 5, color: '#157028', angle: 0.1 },
+    { dx:   3 + sway, dy: -26, rx: 5, ry: 4, color: '#1a7a2c', angle: -0.5 },
+    { dx:  -7 + sway, dy: -22, rx: 4, ry: 3, color: '#12602a', angle: 0.6 },
+  ];
   leaves.forEach(l => {
     ctx.save();
     ctx.translate(p.x + l.dx, p.y + l.dy);
-    ctx.rotate(swayA * 0.04);
+    ctx.rotate(l.angle + sway * 0.02);
     ctx.fillStyle = l.color;
     ctx.beginPath();
-    ctx.ellipse(0, 0, l.w / 2, l.h / 2, Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, l.rx, l.ry, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
+    // Leaf vein
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -l.ry); ctx.lineTo(0, l.ry);
+    ctx.stroke();
     ctx.restore();
   });
 }
 
-// ─────────────────────────────────────────────
-//  MEETING TABLE
-// ─────────────────────────────────────────────
-function drawMeetingTable(item) {
-  const p = toScreen(item.gx, item.gy);
-  const tH = 12;
-  // Table top
-  isoTop(p.x, p.y - tH, 2.5, 1.8, '#6B4E10', '#4a3008');
-  // Table legs (implied by side faces)
-  isoLeftFace(p.x, p.y - tH, 2.5, 1.8, tH, '#4a3008');
-  isoRightFace(p.x, p.y - tH, 2.5, 1.8, tH, '#5a3e08');
-
-  // Papers/laptop on table
-  ctx.fillStyle = '#e8e8e8';
-  ctx.fillRect(p.x - 12, p.y - tH - 3, 10, 7);
-  ctx.fillStyle = '#ccc';
-  ctx.fillRect(p.x - 11, p.y - tH - 2, 8, 5);
-
-  ctx.fillStyle = '#1a2a3a';
-  ctx.fillRect(p.x + 2, p.y - tH - 4, 14, 9);
-  ctx.fillStyle = '#45b7d1';
-  ctx.fillRect(p.x + 3, p.y - tH - 3, 12, 7);
-}
-
-// ─────────────────────────────────────────────
-//  WALL DECORATIONS
-// ─────────────────────────────────────────────
-function drawWallDecorations() {
-  // Small window on left wall around (0, 5)
-  const pw = toScreen(0, 5);
-  const winX = pw.x - TILE_W * 0.3;
-  const winY = pw.y - WALL_H * 0.6;
-  // Window frame
-  ctx.fillStyle = '#2a3a4a';
-  ctx.fillRect(winX - 14, winY - 10, 28, 22);
-  // Window glass
-  ctx.fillStyle = '#0a2040';
-  ctx.fillRect(winX - 12, winY - 8, 11, 18);
-  ctx.fillRect(winX + 1, winY - 8, 11, 18);
-  // Light reflection
-  ctx.save();
-  ctx.globalAlpha = 0.15;
-  ctx.fillStyle = '#45b7d1';
-  ctx.fillRect(winX - 11, winY - 7, 3, 16);
-  ctx.fillRect(winX + 2, winY - 7, 3, 16);
-  ctx.restore();
-
-  // Neon accent strip along back wall
-  const glowAlpha = 0.6 + 0.4 * Math.sin(t * 0.04);
-  for (let gx = 1; gx < GRID_W - 1; gx++) {
-    const p = toScreen(gx, 0);
-    ctx.save();
-    ctx.globalAlpha = glowAlpha * 0.3;
-    ctx.fillStyle = '#4ecdc4';
-    ctx.fillRect(p.x + TILE_W/2 - 2, p.y - WALL_H * 0.95, 4, 2);
-    ctx.restore();
+// ─── OVERHEAD LIGHTS ─────────────────────────────────────────────────────────
+function drawOverheadLights() {
+  const lightGx = [4, 8, 12, 4, 8, 12];
+  const lightGy = [3, 3, 3,  7, 7, 7 ];
+  for (let i = 0; i < lightGx.length; i++) {
+    const lp = toScreen(lightGx[i], lightGy[i]);
+    const rad = ctx.createRadialGradient(lp.x, lp.y - 35, 0, lp.x, lp.y - 35, 65);
+    rad.addColorStop(0, 'rgba(255,255,200,0.05)');
+    rad.addColorStop(1, 'rgba(255,255,200,0)');
+    ctx.fillStyle = rad;
+    ctx.beginPath();
+    ctx.arc(lp.x, lp.y - 35, 65, 0, Math.PI * 2);
+    ctx.fill();
   }
-
-  // Clock on back wall
-  const pc = toScreen(14, 0);
-  const cX = pc.x + TILE_W * 0.3;
-  const cY = pc.y - WALL_H * 0.4;
-  ctx.fillStyle = '#1a2a3a';
-  ctx.beginPath();
-  ctx.arc(cX, cY, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#4ecdc4';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  // Clock hands
-  const now = new Date();
-  const hours = now.getHours() % 12;
-  const mins = now.getMinutes();
-  const secs = now.getSeconds();
-  const hAngle = (hours / 12) * Math.PI * 2 - Math.PI / 2;
-  const mAngle = (mins / 60) * Math.PI * 2 - Math.PI / 2;
-  ctx.strokeStyle = '#e0e0e0';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(cX, cY);
-  ctx.lineTo(cX + Math.cos(hAngle) * 5, cY + Math.sin(hAngle) * 5);
-  ctx.stroke();
-  ctx.strokeStyle = '#4ecdc4';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(cX, cY);
-  ctx.lineTo(cX + Math.cos(mAngle) * 8, cY + Math.sin(mAngle) * 8);
-  ctx.stroke();
 }
 
-// ─────────────────────────────────────────────
-//  FURNITURE & ITEM LIST
-// ─────────────────────────────────────────────
-const furniture = [
-  { type: 'coffee', gx: 14.2, gy: 5.0 },
-  { type: 'table',  gx: 12,   gy: 8.0 },
-  { type: 'plant',  gx: 1.2,  gy: 1.2 },
-  { type: 'plant',  gx: 14.8, gy: 1.2 },
-  { type: 'plant',  gx: 1.2,  gy: 9.8 },
-];
-
-// ─────────────────────────────────────────────
-//  CHARACTER STATE MACHINE
-// ─────────────────────────────────────────────
+// ─── STATE MACHINE ───────────────────────────────────────────────────────────
 function updateChars() {
   chars.forEach((char, i) => {
     switch (char.state) {
       case 'working':
-        // Occasionally go for coffee if market is quiet
-        if (marketQuiet && Math.random() < 0.0005 && t > 200) {
-          char.state = 'to_coffee';
-          char.tx = COFFEE_POS.gx;
-          char.ty = COFFEE_POS.gy;
-        }
-        // Snap to desk
         char.cx = char.deskGx;
         char.cy = char.deskGy;
+        char.breakCooldown--;
+        if (char.breakCooldown <= 0 && marketQuiet) {
+          // Pick coffee or water randomly
+          char.destination = Math.random() < 0.6 ? 'coffee' : 'water';
+          const dest = char.destination === 'coffee' ? COFFEE_POS : WATER_POS;
+          char.tx = dest.gx;
+          char.ty = dest.gy;
+          char.state = char.destination === 'coffee' ? 'to_coffee' : 'to_water';
+        } else if (char.breakCooldown <= 0) {
+          // Reset cooldown even if market is not quiet
+          char.breakCooldown = 600 + Math.floor(Math.random() * 400);
+        }
         break;
 
       case 'to_coffee':
-        // Walk toward coffee
-        const dxC = char.tx - char.cx;
-        const dyC = char.ty - char.cy;
-        const distC = Math.sqrt(dxC*dxC + dyC*dyC);
-        if (distC < WALK_SPEED * 1.5) {
+      case 'to_water': {
+        const dx = char.tx - char.cx;
+        const dy = char.ty - char.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < WALK_SPEED * 1.5) {
           char.cx = char.tx;
           char.cy = char.ty;
-          char.state = 'at_coffee';
-          char.coffeeTimer = 180 + Math.floor(Math.random() * 120);
+          char.state = char.state === 'to_coffee' ? 'at_coffee' : 'at_water';
+          char.breakTimer = 150 + Math.floor(Math.random() * 150);
         } else {
-          char.cx += (dxC / distC) * WALK_SPEED;
-          char.cy += (dyC / distC) * WALK_SPEED;
+          char.cx += (dx / dist) * WALK_SPEED;
+          char.cy += (dy / dist) * WALK_SPEED;
         }
         break;
+      }
 
       case 'at_coffee':
-        char.coffeeTimer--;
-        if (char.coffeeTimer <= 0) {
-          char.state = 'back';
+      case 'at_water':
+        char.breakTimer--;
+        if (char.breakTimer <= 0) {
           char.tx = char.deskGx;
           char.ty = char.deskGy;
+          char.state = 'back';
         }
         break;
 
-      case 'back':
-        const dxB = char.tx - char.cx;
-        const dyB = char.ty - char.cy;
-        const distB = Math.sqrt(dxB*dxB + dyB*dyB);
-        if (distB < WALK_SPEED * 1.5) {
+      case 'back': {
+        const dx = char.tx - char.cx;
+        const dy = char.ty - char.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < WALK_SPEED * 1.5) {
           char.cx = char.deskGx;
           char.cy = char.deskGy;
           char.state = 'working';
+          char.breakCooldown = 500 + i * 80 + Math.floor(Math.random() * 300);
         } else {
-          char.cx += (dxB / distB) * WALK_SPEED;
-          char.cy += (dyB / distB) * WALK_SPEED;
+          char.cx += (dx / dist) * WALK_SPEED;
+          char.cy += (dy / dist) * WALK_SPEED;
         }
         break;
+      }
     }
   });
 }
 
-// ─────────────────────────────────────────────
-//  MAIN RENDER
-// ─────────────────────────────────────────────
+// ─── MAIN RENDER ─────────────────────────────────────────────────────────────
 function render() {
   ctx.clearRect(0, 0, W, H);
 
-  // Background gradient
-  const bgGrad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W);
-  bgGrad.addColorStop(0, '#0d1220');
-  bgGrad.addColorStop(1, '#060810');
-  ctx.fillStyle = bgGrad;
+  // Background
+  const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W * 0.7);
+  bg.addColorStop(0, '#0e1222');
+  bg.addColorStop(1, '#060810');
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   drawFloor();
   drawWalls();
-  drawWallDecorations();
   drawTVScreen();
 
-  // Build combined depth-sorted list
+  // Depth-sorted draw list
   const items = [];
 
-  // Add furniture
-  furniture.forEach(f => items.push({ ...f, _depth: f.gx + f.gy }));
+  // Plants at 4 corners
+  items.push({ type:'plant',   gx:1,  gy:1,  _d: 2    });
+  items.push({ type:'plant',   gx:14, gy:1,  _d: 15   });
+  items.push({ type:'plant',   gx:1,  gy:8,  _d: 9    });
+  items.push({ type:'plant',   gx:14, gy:8,  _d: 22   });
 
-  // Add desks (as drawable objects)
+  // Coffee machine on right wall area
+  items.push({ type:'coffee',  gx:14, gy:5,  _d: 19   });
+
+  // Water fountain on left wall area
+  items.push({ type:'water',   gx:1,  gy:5,  _d: 6    });
+
+  // Desks
   chars.forEach(char => {
-    items.push({ type: 'desk', char, _depth: char.deskGx + char.deskGy - 0.01 });
+    items.push({ type:'desk', char, _d: char.deskGx + char.deskGy - 0.01 });
   });
 
-  // Add characters
+  // Characters
   chars.forEach(char => {
-    items.push({ type: 'char', char, _depth: char.cx + char.cy + 0.5 });
+    items.push({ type:'char', char, _d: char.cx + char.cy + 0.5 });
   });
 
-  // Sort by depth
-  items.sort((a, b) => a._depth - b._depth);
+  items.sort((a, b) => a._d - b._d);
 
-  // Draw all items
   items.forEach(item => {
-    if (item.type === 'desk') drawDesk(item.char);
-    else if (item.type === 'char') drawChar(item.char);
-    else if (item.type === 'coffee') drawCoffeeMachine(item);
-    else if (item.type === 'plant') drawPlant(item);
-    else if (item.type === 'table') drawMeetingTable(item);
+    switch (item.type) {
+      case 'plant':  drawPlant(item.gx, item.gy);         break;
+      case 'coffee': drawCoffeeMachine(item.gx, item.gy); break;
+      case 'water':  drawWaterFountain(item.gx, item.gy); break;
+      case 'desk':   drawDesk(item.char);                  break;
+      case 'char':   drawChar(item.char);                  break;
+    }
   });
 
-  // Overhead lights
   drawOverheadLights();
 }
 
-function drawOverheadLights() {
-  // Simple ambient light cones from ceiling
-  const lightPositions = [
-    toScreen(4, 4), toScreen(8, 4), toScreen(12, 4),
-    toScreen(4, 8), toScreen(8, 8), toScreen(12, 8)
-  ];
-  lightPositions.forEach(lp => {
-    const rad = ctx.createRadialGradient(lp.x, lp.y - 40, 0, lp.x, lp.y - 40, 60);
-    rad.addColorStop(0, 'rgba(255,255,200,0.04)');
-    rad.addColorStop(1, 'rgba(255,255,200,0)');
-    ctx.fillStyle = rad;
-    ctx.beginPath();
-    ctx.arc(lp.x, lp.y - 40, 60, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-// ─────────────────────────────────────────────
-//  GAME LOOP
-// ─────────────────────────────────────────────
+// ─── GAME LOOP ───────────────────────────────────────────────────────────────
 function gameLoop() {
   t++;
   updateChars();
@@ -1159,24 +1138,22 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// ─────────────────────────────────────────────
-//  CLICK HANDLING
-// ─────────────────────────────────────────────
+// ─── CLICK HANDLING ──────────────────────────────────────────────────────────
 canvas.addEventListener('click', function(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = W / rect.width;
-  const scaleY = H / rect.height;
-  const mx = (e.clientX - rect.left) * scaleX;
-  const my = (e.clientY - rect.top)  * scaleY;
+  const sx = W / rect.width;
+  const sy = H / rect.height;
+  const mx = (e.clientX - rect.left) * sx;
+  const my = (e.clientY - rect.top)  * sy;
 
-  // Check TV zone first
+  // TV screen → navigate to dashboard
   if (mx >= tvZone.x && mx <= tvZone.x + tvZone.w &&
       my >= tvZone.y && my <= tvZone.y + tvZone.h) {
-    openBigScreenModal();
+    window.location.href = '/dashboard';
     return;
   }
 
-  // Check desk monitors
+  // Desk monitors → open agent modal
   for (const char of chars) {
     if (!char._mz) continue;
     const mz = char._mz;
@@ -1188,13 +1165,12 @@ canvas.addEventListener('click', function(e) {
   }
 });
 
-// Cursor feedback
 canvas.addEventListener('mousemove', function(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = W / rect.width;
-  const scaleY = H / rect.height;
-  const mx = (e.clientX - rect.left) * scaleX;
-  const my = (e.clientY - rect.top)  * scaleY;
+  const sx = W / rect.width;
+  const sy = H / rect.height;
+  const mx = (e.clientX - rect.left) * sx;
+  const my = (e.clientY - rect.top)  * sy;
 
   let pointer = false;
   if (mx >= tvZone.x && mx <= tvZone.x + tvZone.w &&
@@ -1214,143 +1190,86 @@ canvas.addEventListener('mousemove', function(e) {
   canvas.style.cursor = pointer ? 'pointer' : 'default';
 });
 
-// ─────────────────────────────────────────────
-//  MODALS
-// ─────────────────────────────────────────────
+// ─── MODALS ──────────────────────────────────────────────────────────────────
 function closeModals() {
   document.getElementById('agent-modal').classList.remove('open');
-  document.getElementById('bigscreen-modal').classList.remove('open');
 }
 
 document.getElementById('agent-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModals();
-});
-document.getElementById('bigscreen-modal').addEventListener('click', function(e) {
   if (e.target === this) closeModals();
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeModals();
 });
 
+function stateLabel(state) {
+  const m = {
+    working:  'Au bureau',
+    to_coffee:'Vers café',
+    at_coffee:'Pause café',
+    to_water: 'Vers fontaine',
+    at_water: 'Pause eau',
+    back:     'Retour bureau'
+  };
+  return m[state] || state;
+}
+
+function stateBadge(state) {
+  if (state === 'working')                          return ['ACTIF',      'badge-active'];
+  if (state === 'at_coffee' || state === 'to_coffee') return ['PAUSE CAFÉ', 'badge-coffee'];
+  if (state === 'at_water'  || state === 'to_water')  return ['PAUSE EAU',  'badge-coffee'];
+  return ['EN ROUTE', 'badge-idle'];
+}
+
+function ts() {
+  return new Date().toTimeString().slice(0, 8);
+}
+
 function openAgentModal(char) {
   const modal = document.getElementById('agent-modal');
+  const box   = document.getElementById('agent-modal-box');
+
   document.getElementById('am-title').textContent = char.name.toUpperCase() + ' — DÉTAILS';
-  document.getElementById('am-dot').style.background = char.color;
+  document.getElementById('am-dot').style.background = char.shirtColor;
   document.getElementById('am-name').textContent = char.name;
   document.getElementById('am-role').textContent = char.role;
 
-  // Badge
-  const badge = document.getElementById('am-badge');
-  if (char.state === 'working') {
-    badge.textContent = 'ACTIF'; badge.className = 'agent-badge badge-active';
-  } else if (char.state === 'at_coffee' || char.state === 'to_coffee') {
-    badge.textContent = 'PAUSE'; badge.className = 'agent-badge badge-coffee';
-  } else {
-    badge.textContent = 'EN ROUTE'; badge.className = 'agent-badge badge-idle';
-  }
+  box.style.borderTopColor = char.shirtColor;
 
-  // Info grid
-  const d = char.liveData || {};
-  const info = [
-    ['ÉTAT',       stateLabel(char.state)],
-    ['SIGNAL',     d.signal     || '—'],
-    ['TRADE COUNT',d.trades     || d.trade_count || '—'],
-    ['WIN RATE',   d.win_rate   || '—'],
-    ['P&L',        d.pnl        || '—'],
-    ['CONFIANCE',  d.confidence !== undefined ? (d.confidence * 100).toFixed(0) + '%' : '—'],
+  const [badgeText, badgeClass] = stateBadge(char.state);
+  const badge = document.getElementById('am-badge');
+  badge.textContent = badgeText;
+  badge.className = 'agent-badge ' + badgeClass;
+
+  const d = (apiData && apiData[char.id]) ? apiData[char.id] : {};
+  const info = (d.info && Array.isArray(d.info)) ? d.info : [
+    ['ÉTAT',        stateLabel(char.state)],
+    ['SIGNAL',      d.signal     || '—'],
+    ['TRADES',      d.trade_count || d.trades || '—'],
+    ['WIN RATE',    d.win_rate   || '—'],
+    ['P&L',         d.pnl        || '—'],
+    ['CONFIANCE',   d.confidence !== undefined ? (d.confidence * 100).toFixed(0) + '%' : '—'],
   ];
+
   document.getElementById('am-info').innerHTML = info.map(([l, v]) =>
-    `<div class="info-row"><div class="lbl">${l}</div><div class="val">${v}</div></div>`
+    `<div class="info-row"><div class="lbl">${l}</div><div class="val" style="color:${char.shirtColor}">${v}</div></div>`
   ).join('');
 
-  // Terminal
-  const logs = d.logs || [
-    `[${ts()}] ${char.name} initialisé`,
-    `[${ts()}] Surveillance des marchés…`,
-    `[${ts()}] Analyse en cours`,
+  const logs = (d.logs && Array.isArray(d.logs)) ? d.logs : [
+    `[${ts()}] ${char.name} opérationnel`,
+    `[${ts()}] Surveillance des marchés active`,
+    `[${ts()}] En attente de signaux…`
   ];
   document.getElementById('am-terminal').innerHTML = logs.map(l =>
     `<div>${l}</div>`
   ).join('');
+  const term = document.getElementById('am-terminal');
+  term.scrollTop = term.scrollHeight;
 
   modal.classList.add('open');
 }
 
-function openBigScreenModal() {
-  const modal = document.getElementById('bigscreen-modal');
-  const s = apiData && apiData._stats ? apiData._stats : {};
-  const bal = s.balance   || '{{ balance }}';
-  const pnl = s.pnl       || '{{ pnl }}';
-  const pos = s.positions || '{{ positions }}';
-  const wr  = s.win_rate  || '{{ win_rate }}';
-
-  document.getElementById('bm-balance').textContent   = bal;
-  document.getElementById('bm-pnl').textContent       = pnl;
-  document.getElementById('bm-positions').textContent = pos;
-  document.getElementById('bm-winrate').textContent   = wr;
-
-  // P&L color
-  const pnlEl = document.getElementById('bm-pnl');
-  pnlEl.className = 'val ' + (String(pnl).startsWith('-') ? 'neg' : 'pos');
-
-  // Positions table
-  const posData = apiData && apiData.positions ? apiData.positions : [];
-  const posTbody = document.getElementById('bm-positions-table');
-  if (posData.length === 0) {
-    posTbody.innerHTML = '<tr><td colspan="6" style="color:#334;text-align:center;">Aucune position ouverte</td></tr>';
-  } else {
-    posTbody.innerHTML = posData.slice(0, 15).map(p =>
-      `<tr>
-        <td style="color:#e0e0e0;font-weight:bold;">${p.symbol || '—'}</td>
-        <td style="color:${p.side === 'BUY' ? '#4ecdc4' : '#ff6b6b'}">${p.side || '—'}</td>
-        <td>${p.size || p.amount || '—'}</td>
-        <td>${p.entry || p.entry_price || '—'}</td>
-        <td style="color:${(p.pnl||'').toString().startsWith('-') ? '#ff6b6b' : '#4ecdc4'}">${p.pnl || p.unrealized_pnl || '—'}</td>
-        <td style="color:#778">${p.agent || '—'}</td>
-      </tr>`
-    ).join('');
-  }
-
-  // Trades table
-  const tradesData = apiData && apiData.recent_trades ? apiData.recent_trades : [];
-  const tradesTbody = document.getElementById('bm-trades-table');
-  if (tradesData.length === 0) {
-    tradesTbody.innerHTML = '<tr><td colspan="5" style="color:#334;text-align:center;">Aucun trade récent</td></tr>';
-  } else {
-    tradesTbody.innerHTML = tradesData.slice(0, 10).map(tr =>
-      `<tr>
-        <td style="color:#556">${tr.time || tr.timestamp || '—'}</td>
-        <td style="color:#e0e0e0">${tr.symbol || '—'}</td>
-        <td style="color:${tr.action === 'BUY' ? '#4ecdc4' : '#ff6b6b'}">${tr.action || tr.side || '—'}</td>
-        <td>${tr.price || '—'}</td>
-        <td style="color:${(tr.pnl||'').toString().startsWith('-') ? '#ff6b6b' : '#4ecdc4'}">${tr.pnl || '—'}</td>
-      </tr>`
-    ).join('');
-  }
-
-  // Signals table
-  const signalsData = apiData && apiData.recent_signals ? apiData.recent_signals : [];
-  const signalsTbody = document.getElementById('bm-signals-table');
-  if (signalsData.length === 0) {
-    signalsTbody.innerHTML = '<tr><td colspan="5" style="color:#334;text-align:center;">Aucun signal récent</td></tr>';
-  } else {
-    signalsTbody.innerHTML = signalsData.slice(0, 10).map(sig =>
-      `<tr>
-        <td style="color:#556">${sig.time || sig.timestamp || '—'}</td>
-        <td style="color:#778">${sig.agent || '—'}</td>
-        <td style="color:${sig.signal === 'BUY' ? '#4ecdc4' : sig.signal === 'SELL' ? '#ff6b6b' : '#ffd700'}">${sig.signal || '—'}</td>
-        <td style="color:#e0e0e0">${sig.symbol || '—'}</td>
-        <td>${sig.confidence !== undefined ? (sig.confidence * 100).toFixed(0) + '%' : (sig.conf || '—')}</td>
-      </tr>`
-    ).join('');
-  }
-
-  modal.classList.add('open');
-}
-
-// ─────────────────────────────────────────────
-//  API FETCH
-// ─────────────────────────────────────────────
+// ─── API FETCH ───────────────────────────────────────────────────────────────
 function fetchData() {
   fetch('/api/agents')
     .then(r => r.json())
@@ -1358,50 +1277,29 @@ function fetchData() {
       apiData = data;
       marketQuiet = !!data._market_quiet;
 
-      // Update header
       if (data._stats) {
         const s = data._stats;
         const balEl = document.getElementById('hdr-balance');
         const pnlEl = document.getElementById('hdr-pnl');
         const posEl = document.getElementById('hdr-positions');
         const wrEl  = document.getElementById('hdr-winrate');
-        if (balEl) balEl.textContent = s.balance   || '—';
+        if (balEl) balEl.textContent = s.balance  || '—';
         if (pnlEl) {
           pnlEl.textContent = s.pnl || '—';
-          pnlEl.className = 'val ' + (String(s.pnl||'').startsWith('-') ? 'neg' : 'pos');
+          pnlEl.className = 'val ' + (String(s.pnl || '').startsWith('-') ? 'neg' : 'pos');
         }
         if (posEl) posEl.textContent = s.positions || '—';
         if (wrEl)  wrEl.textContent  = s.win_rate  || '—';
       }
 
-      // Distribute live data to chars
       chars.forEach(char => {
-        if (data[char.id]) {
-          char.liveData = data[char.id];
-        }
+        if (data[char.id]) char.liveData = data[char.id];
       });
     })
-    .catch(() => {
-      // Silent fail — static Jinja values remain
-    });
+    .catch(() => {});
 }
 
-// ─────────────────────────────────────────────
-//  HELPERS
-// ─────────────────────────────────────────────
-function ts() {
-  const now = new Date();
-  return now.toTimeString().slice(0,8);
-}
-
-function stateLabel(state) {
-  const m = { working: 'Au bureau', to_coffee: 'Vers café', at_coffee: 'Pause café', back: 'Retour bureau' };
-  return m[state] || state;
-}
-
-// ─────────────────────────────────────────────
-//  INIT
-// ─────────────────────────────────────────────
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 fetchData();
 setInterval(fetchData, 60000);
 gameLoop();

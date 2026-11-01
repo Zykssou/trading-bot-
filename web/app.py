@@ -66,7 +66,7 @@ def fetch_chart_ohlc(coin_id):
         print(f"[Chart] Erreur: {e}")
     return []
 
-@app.route("/")
+@app.route("/dashboard")
 def dashboard():
     db = get_db()
 
@@ -140,6 +140,7 @@ def position_detail(pos_id):
         chart_data=chart_data
     )
 
+@app.route("/")
 @app.route("/office")
 def office():
     db = get_db()
