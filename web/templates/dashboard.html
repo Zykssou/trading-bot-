@@ -83,16 +83,19 @@
   <h2>Positions ouvertes</h2>
   {% if positions %}
   <table>
-    <thead><tr><th>Coin</th><th>Mise</th><th>Prix d'achat</th><th>Prix actuel</th><th>P&L</th><th>Ouvert le</th><th></th></tr></thead>
+    <thead><tr><th>Coin</th><th>Type</th><th>Mise</th><th>Prix d'achat</th><th>Prix actuel</th><th>P&L</th><th>%</th><th>Ouvert le</th><th></th></tr></thead>
     <tbody>
     {% for p in positions %}
+    {% set pnl_pct = ((p.current_price - p.buy_price) / p.buy_price * 100) if p.position_type != 'short' else ((p.buy_price - p.current_price) / p.buy_price * 100) %}
     <tr class="clickable" onclick="window.location='/position/{{ p.id }}'">
       <td><span class="badge badge-open">{{ p.coin.upper() }}</span></td>
+      <td><span class="badge {% if p.position_type == 'short' %}badge-sell{% else %}badge-buy{% endif %}">{{ (p.position_type or 'long').upper() }}</span></td>
       <td>{{ "%.2f"|format(p.amount) }}€</td>
-      <td>{{ "%.6f"|format(p.buy_price) }}$</td>
-      <td>{{ "%.6f"|format(p.current_price) }}$</td>
+      <td>${{ "%.4f"|format(p.buy_price) }}</td>
+      <td>${{ "%.4f"|format(p.current_price) }}</td>
       <td class="{% if p.pnl >= 0 %}green{% else %}red{% endif %}">{{ "%+.2f"|format(p.pnl) }}€</td>
-      <td>{{ p.opened_at[:16] }}</td>
+      <td class="{% if pnl_pct >= 0 %}green{% else %}red{% endif %}" style="font-weight:700">{{ "%+.1f"|format(pnl_pct) }}%</td>
+      <td style="color:#7d8590;font-size:13px">{{ p.opened_at[:16].replace("T"," ") }}</td>
       <td style="color:#7d8590;font-size:12px">→</td>
     </tr>
     {% endfor %}
