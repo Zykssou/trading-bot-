@@ -45,6 +45,148 @@
   </div>
 </div>
 
+<div class="section" style="padding-top:24px">
+  <h2>Salle de trading</h2>
+  <div style="background:#0d1117;border:1px solid #30363d;border-radius:10px;overflow:hidden">
+    <canvas id="tradingFloor" height="270" style="width:100%;display:block"></canvas>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('tradingFloor');
+  canvas.width = canvas.offsetWidth || 900;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const TW = Math.min(150, W / 4.5);
+  const TH = TW * 0.5;
+  const OX = W / 2, OY = TH * 1.2;
+
+  const balanceStat = "{{ '%.0f'|format(balance) }}€";
+  const pnlStat = "{{ '%+.2f'|format(pnl) }}€";
+  const posStat = {{ positions|length }} + " pos.";
+  const winStat = "{{ win_rate }}% wins";
+
+  const AGENTS = [
+    { gx:0, gy:0, name:"Scanner",    stat:posStat,    color:"#58a6ff", body:"#0d2a5a" },
+    { gx:1, gy:0, name:"Analyste",   stat:winStat,    color:"#e3b341", body:"#4a3800" },
+    { gx:2, gy:0, name:"Risk",       stat:"Max 5",    color:"#f85149", body:"#4a0d0d" },
+    { gx:0, gy:1, name:"Portfolio",  stat:balanceStat,color:"#a371f7", body:"#2a0a5a" },
+    { gx:1, gy:1, name:"★ TRADER",   stat:pnlStat,    color:"#3fb950", body:"#0a3a1a", star:true },
+    { gx:2, gy:1, name:"Reporter",   stat:"TG ✓",    color:"#79c0ff", body:"#0a2040" },
+  ];
+
+  function toScreen(gx, gy) {
+    return { x: OX + (gx - gy) * TW / 2, y: OY + (gx + gy) * TH / 2 };
+  }
+
+  function diamond(cx, cy, hw, hh, fill, stroke) {
+    ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy-hh); ctx.lineTo(cx+hw, cy);
+    ctx.lineTo(cx, cy+hh); ctx.lineTo(cx-hw, cy);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  function drawDesk(sx, sy, color, star) {
+    const dw = TW*0.72, dh = TH*0.38, dp = TH*0.28;
+    ctx.shadowColor = star ? color : 'transparent';
+    ctx.shadowBlur = star ? 18 : 0;
+    // top
+    ctx.fillStyle = star ? '#182e1e' : '#161b22';
+    ctx.strokeStyle = color; ctx.lineWidth = star ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy-dh); ctx.lineTo(sx+dw/2, sy-dh/2);
+    ctx.lineTo(sx, sy);    ctx.lineTo(sx-dw/2, sy-dh/2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // right face
+    ctx.fillStyle = '#0d1117';
+    ctx.beginPath();
+    ctx.moveTo(sx, sy); ctx.lineTo(sx+dw/2, sy-dh/2);
+    ctx.lineTo(sx+dw/2, sy-dh/2+dp); ctx.lineTo(sx, sy+dp);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = color+'44'; ctx.lineWidth=1; ctx.stroke();
+    // left face
+    ctx.fillStyle = '#0a0d12';
+    ctx.beginPath();
+    ctx.moveTo(sx, sy); ctx.lineTo(sx-dw/2, sy-dh/2);
+    ctx.lineTo(sx-dw/2, sy-dh/2+dp); ctx.lineTo(sx, sy+dp);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  function drawMonitor(sx, sy, color, stat) {
+    const mw = TW*0.22, mh = TH*0.48;
+    ctx.shadowColor = color; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#0d1117';
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.fillRect(sx-mw/2, sy-mh, mw, mh);
+    ctx.strokeRect(sx-mw/2, sy-mh, mw, mh);
+    ctx.fillStyle = color+'18';
+    ctx.fillRect(sx-mw/2+2, sy-mh+2, mw-4, mh-4);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = color;
+    ctx.font = `bold ${Math.max(7, TW*0.065)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(stat, sx, sy - mh*0.35);
+    if (frame % 80 < 40) {
+      ctx.fillStyle = color; ctx.fillRect(sx-3, sy-mh*0.1, 6, 2);
+    }
+    ctx.fillStyle = '#21262d';
+    ctx.fillRect(sx-2, sy-2, 4, 7);
+    ctx.fillRect(sx-7, sy+5, 14, 3);
+  }
+
+  function drawChar(sx, sy, bodyColor, offset) {
+    const bob = Math.sin((frame + offset) * 0.06) * 1.8;
+    const arm = Math.sin((frame + offset) * 0.14) * 3;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(sx, sy+2, 7, 2.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(sx-5, sy-19+bob, 10, 13);
+    ctx.fillStyle = '#c8a87c';
+    ctx.fillRect(sx-4, sy-27+bob, 8, 9);
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(sx-9, sy-17+bob+arm, 4, 7);
+    ctx.fillRect(sx+5, sy-17+bob-arm, 4, 7);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(sx-4, sy-6+bob, 3, 9);
+    ctx.fillRect(sx+1, sy-6+bob, 3, 9);
+  }
+
+  let frame = 0;
+  function render() {
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0,0,W,H);
+
+    // floor tiles
+    for (let gy=-1; gy<=3; gy++) for (let gx=-1; gx<=4; gx++) {
+      const s = toScreen(gx-0.5, gy-0.5);
+      diamond(s.x, s.y, TW/2, TH/2, '#0d1117', '#1a2030');
+    }
+
+    // agents sorted back to front
+    const sorted = [...AGENTS].sort((a,b) => (a.gy-b.gy)||((a.gx+a.gy)-(b.gx+b.gy)));
+    for (const ag of sorted) {
+      const s = toScreen(ag.gx, ag.gy);
+      drawDesk(s.x, s.y-8, ag.color, ag.star);
+      drawMonitor(s.x+TW*0.13, s.y-TH*0.52, ag.color, ag.stat);
+      drawChar(s.x-TW*0.14, s.y-4, ag.body, ag.gx*25+ag.gy*50);
+      ctx.shadowColor = ag.color; ctx.shadowBlur = ag.star ? 12 : 4;
+      ctx.fillStyle = ag.color;
+      ctx.font = `bold ${Math.max(9,TW*0.078)}px 'Segoe UI', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(ag.name, s.x, s.y+TH*0.7);
+      ctx.shadowBlur = 0;
+    }
+    frame++;
+    requestAnimationFrame(render);
+  }
+  window.addEventListener('resize', () => { canvas.width = canvas.offsetWidth; });
+  render();
+})();
+</script>
+
 <div class="grid">
   <div class="card">
     <div class="label">Balance</div>
