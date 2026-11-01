@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="30">
+<title>Bot de Trading — Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; }
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #7d8590; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 24px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+  .card .label { font-size: 12px; color: #7d8590; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card .value { font-size: 28px; font-weight: 700; }
+  .card .sub { font-size: 13px; color: #7d8590; margin-top: 4px; }
+  .green { color: #3fb950; }
+  .red { color: #f85149; }
+  .section { padding: 0 24px 24px; }
+  .section h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #7d8590; text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; background: #161b22; border-radius: 10px; overflow: hidden; border: 1px solid #30363d; }
+  th { padding: 10px 16px; text-align: left; font-size: 12px; color: #7d8590; text-transform: uppercase; border-bottom: 1px solid #30363d; }
+  td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #21262d; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-buy { background: #1f4a2e; color: #3fb950; }
+  .badge-sell { background: #4a1f1f; color: #f85149; }
+  .badge-open { background: #1f3a4a; color: #58a6ff; }
+  .empty { text-align: center; color: #7d8590; padding: 40px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🤖 Bot de Trading — Dashboard</h1>
+  <div class="status">
+    <div class="dot"></div>
+    <span>En ligne · Mis à jour à {{ last_update }}</span>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Balance</div>
+    <div class="value">{{ "%.2f"|format(balance) }}€</div>
+    <div class="sub">Départ: 1 000€</div>
+  </div>
+  <div class="card">
+    <div class="label">P&L Total</div>
+    <div class="value {% if pnl >= 0 %}green{% else %}red{% endif %}">
+      {{ "%+.2f"|format(pnl) }}€
+    </div>
+    <div class="sub">{{ "%+.1f"|format(pnl_pct) }}%</div>
+  </div>
+  <div class="card">
+    <div class="label">Taux de réussite</div>
+    <div class="value {% if win_rate >= 55 %}green{% elif win_rate >= 40 %}{% else %}red{% endif %}">
+      {{ win_rate }}%
+    </div>
+    <div class="sub">{{ wins }} / {{ total_trades }} trades</div>
+  </div>
+  <div class="card">
+    <div class="label">Aujourd'hui</div>
+    <div class="value {% if today_pnl >= 0 %}green{% else %}red{% endif %}">
+      {{ "%+.2f"|format(today_pnl) }}€
+    </div>
+    <div class="sub">{{ today_trades }} trades</div>
+  </div>
+  <div class="card">
+    <div class="label">Positions ouvertes</div>
+    <div class="value">{{ positions|length }}</div>
+    <div class="sub">Max 5 simultanées</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Positions ouvertes</h2>
+  {% if positions %}
+  <table>
+    <thead><tr><th>Coin</th><th>Mise</th><th>Prix d'achat</th><th>Prix actuel</th><th>P&L</th><th>Ouvert le</th></tr></thead>
+    <tbody>
+    {% for p in positions %}
+    <tr>
+      <td><span class="badge badge-open">{{ p.coin.upper() }}</span></td>
+      <td>{{ "%.2f"|format(p.amount) }}€</td>
+      <td>{{ "%.6f"|format(p.buy_price) }}$</td>
+      <td>{{ "%.6f"|format(p.current_price) }}$</td>
+      <td class="{% if p.pnl >= 0 %}green{% else %}red{% endif %}">{{ "%+.2f"|format(p.pnl) }}€</td>
+      <td>{{ p.opened_at[:16] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Aucune position ouverte</div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h2>Derniers trades</h2>
+  {% if trades %}
+  <table>
+    <thead><tr><th>Coin</th><th>P&L</th><th>Prix achat</th><th>Prix vente</th><th>Fermé le</th></tr></thead>
+    <tbody>
+    {% for t in trades %}
+    <tr>
+      <td>{{ t.coin.upper() }}</td>
+      <td class="{% if t.pnl >= 0 %}green{% else %}red{% endif %}">{{ "%+.2f"|format(t.pnl) }}€</td>
+      <td>{{ "%.6f"|format(t.buy_price) }}$</td>
+      <td>{{ "%.6f"|format(t.current_price) }}$</td>
+      <td>{{ t.closed_at[:16] if t.closed_at else "—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Aucun trade effectué pour l'instant</div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h2>Derniers signaux</h2>
+  {% if signals %}
+  <table>
+    <thead><tr><th>Coin</th><th>Signal</th><th>Score</th><th>Raison</th><th>Heure</th></tr></thead>
+    <tbody>
+    {% for s in signals %}
+    <tr>
+      <td>{{ s.coin.upper() }}</td>
+      <td><span class="badge {% if s.signal_type == 'buy' %}badge-buy{% else %}badge-sell{% endif %}">{{ s.signal_type.upper() }}</span></td>
+      <td>{{ s.score }}</td>
+      <td style="color:#7d8590;font-size:12px">{{ s.reason[:60] }}</td>
+      <td>{{ s.created_at[11:16] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Aucun signal détecté</div>
+  {% endif %}
+</div>
+
+</body>
+</html>
