@@ -1,7 +1,7 @@
 import requests
 import time
 from datetime import datetime
-from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS
+from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS, COIN_PROFILES
 from database.db import save_market_data, save_signal
 
 def fetch_coin_data(coin_id):
@@ -48,9 +48,12 @@ def analyze_coin(coin_data, previous_data=None):
 
     price_change_1h = coin_data.get("price_change_1h", 0) or 0
     price_change_24h = coin_data.get("price_change_24h", 0) or 0
+    coin_id = coin_data.get("coin", "")
+    profile = COIN_PROFILES.get(coin_id, {})
+    threshold = profile.get("threshold", PRICE_CHANGE_THRESHOLD)
 
     # Signal hausse rapide
-    if price_change_1h >= PRICE_CHANGE_THRESHOLD:
+    if price_change_1h >= threshold:
         score += 30
         reasons.append(f"Hausse {price_change_1h:.1f}% en 1h")
 
@@ -72,7 +75,7 @@ def analyze_coin(coin_data, previous_data=None):
             reasons.append(f"Volume +{(volume_ratio-1)*100:.0f}%")
 
     # Signal baisse (signal de vente)
-    if price_change_1h <= -PRICE_CHANGE_THRESHOLD:
+    if price_change_1h <= -threshold:
         score -= 30
         reasons.append(f"Baisse {price_change_1h:.1f}% en 1h")
 

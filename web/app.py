@@ -22,10 +22,15 @@ def dashboard():
 
     balance = db.execute("SELECT balance FROM portfolio WHERE id = 1").fetchone()
     balance = balance["balance"] if balance else INITIAL_BALANCE
-    pnl = balance - INITIAL_BALANCE
-    pnl_pct = (pnl / INITIAL_BALANCE) * 100
 
     positions = db.execute("SELECT * FROM positions WHERE status = 'open' ORDER BY opened_at DESC").fetchall()
+
+    # P&L réel = cash dispo + valeur positions ouvertes - mise initiale
+    invested = sum(p["amount"] for p in positions)
+    unrealized_pnl = sum(p["pnl"] for p in positions)
+    total_value = balance + invested + unrealized_pnl
+    pnl = total_value - INITIAL_BALANCE
+    pnl_pct = (pnl / INITIAL_BALANCE) * 100
 
     trades = db.execute("""
         SELECT * FROM positions WHERE status = 'closed'

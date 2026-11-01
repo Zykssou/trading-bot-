@@ -39,3 +39,24 @@ MEME_COINS = ["pepe", "shiba-inu", "floki", "bonk", "wojak"]
 
 # Or et matières premières (via API alternative)
 GOLD_SYMBOL = "XAU"
+
+# Stratégie par coin — seuil entrée, stop-loss, take-profit
+COIN_PROFILES = {
+    "bitcoin":            {"threshold": 3.0, "stop_loss": 0.05, "take_profit": 0.10},
+    "ethereum":           {"threshold": 3.0, "stop_loss": 0.05, "take_profit": 0.10},
+    "solana":             {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "bnb":                {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "xrp":                {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "cardano":            {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "avalanche-2":        {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "chainlink":          {"threshold": 2.0, "stop_loss": 0.07, "take_profit": 0.15},
+    "sui":                {"threshold": 1.5, "stop_loss": 0.08, "take_profit": 0.20},
+    "injective-protocol": {"threshold": 1.5, "stop_loss": 0.08, "take_profit": 0.20},
+    "render-token":       {"threshold": 1.5, "stop_loss": 0.08, "take_profit": 0.20},
+    "fetch-ai":           {"threshold": 1.5, "stop_loss": 0.08, "take_profit": 0.20},
+    "pepe":               {"threshold": 1.0, "stop_loss": 0.08, "take_profit": 0.20},
+    "shiba-inu":          {"threshold": 1.0, "stop_loss": 0.08, "take_profit": 0.20},
+    "floki":              {"threshold": 1.0, "stop_loss": 0.08, "take_profit": 0.20},
+    "bonk":               {"threshold": 0.8, "stop_loss": 0.10, "take_profit": 0.25},
+    "wojak":              {"threshold": 0.8, "stop_loss": 0.10, "take_profit": 0.25},
+}

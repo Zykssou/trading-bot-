@@ -1,4 +1,4 @@
-from config import MAX_TRADE_PERCENT, STOP_LOSS_PERCENT, TAKE_PROFIT_PERCENT, MAX_DAILY_LOSS_PERCENT
+from config import MAX_TRADE_PERCENT, STOP_LOSS_PERCENT, TAKE_PROFIT_PERCENT, MAX_DAILY_LOSS_PERCENT, COIN_PROFILES
 from database.db import get_balance, get_open_positions
 
 def check_risk(coin, score, price):
@@ -20,8 +20,11 @@ def check_risk(coin, score, price):
     if trade_amount < 10:
         return {"approved": False, "reason": "Balance trop faible"}
 
-    stop_loss_price = price * (1 - STOP_LOSS_PERCENT)
-    take_profit_price = price * (1 + TAKE_PROFIT_PERCENT)
+    profile = COIN_PROFILES.get(coin, {})
+    sl = profile.get("stop_loss", STOP_LOSS_PERCENT)
+    tp = profile.get("take_profit", TAKE_PROFIT_PERCENT)
+    stop_loss_price = price * (1 - sl)
+    take_profit_price = price * (1 + tp)
 
     return {
         "approved": True,
