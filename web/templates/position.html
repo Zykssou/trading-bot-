@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="30">
+<title>{{ coin.upper() }} — Détail position</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; }
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .back { color: #58a6ff; text-decoration: none; font-size: 14px; }
+  .header h1 { font-size: 18px; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+  .short { background: #4a1f1f; color: #f85149; }
+  .long { background: #1f4a2e; color: #3fb950; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; padding: 24px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+  .card .label { font-size: 12px; color: #7d8590; text-transform: uppercase; margin-bottom: 8px; }
+  .card .value { font-size: 24px; font-weight: 700; }
+  .green { color: #3fb950; }
+  .red { color: #f85149; }
+  .orange { color: #e3b341; }
+  .section { padding: 0 24px 24px; }
+  .section h2 { font-size: 15px; color: #7d8590; text-transform: uppercase; margin-bottom: 16px; }
+  .explication { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; line-height: 1.6; }
+  .explication .titre { font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+  .explication .texte { color: #8b949e; font-size: 14px; }
+  .levels { display: flex; gap: 16px; margin-top: 16px; }
+  .level { flex: 1; padding: 12px; border-radius: 8px; text-align: center; }
+  .level-tp { background: #1f4a2e; }
+  .level-sl { background: #4a1f1f; }
+  .level .lbl { font-size: 11px; color: #7d8590; margin-bottom: 4px; }
+  .level .val { font-size: 16px; font-weight: 700; }
+  .chart-container { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="/" class="back">← Retour</a>
+  <h1>{{ coin.upper() }}</h1>
+  <span class="badge {% if is_short %}short{% else %}long{% endif %}">
+    {% if is_short %}SHORT{% else %}LONG{% endif %}
+  </span>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Prix d'entrée</div>
+    <div class="value">${{ "%.4f"|format(pos.buy_price) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Prix actuel</div>
+    <div class="value">${{ "%.4f"|format(pos.current_price) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Mise</div>
+    <div class="value">{{ "%.2f"|format(pos.amount) }}€</div>
+  </div>
+  <div class="card">
+    <div class="label">P&L actuel</div>
+    <div class="value {% if pos.pnl >= 0 %}green{% else %}red{% endif %}">
+      {{ "%+.2f"|format(pos.pnl) }}€
+    </div>
+    <div style="font-size:13px;color:#7d8590;margin-top:4px">{{ "%+.1f"|format(pnl_pct) }}%</div>
+  </div>
+  <div class="card">
+    <div class="label">Ouvert le</div>
+    <div class="value" style="font-size:16px">{{ pos.opened_at[:16].replace("T", " ") }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Explication du trade</h2>
+  <div class="explication">
+    <div class="titre">{{ coin.upper() }} — {{ explanation }}</div>
+    <div class="texte" style="margin-top:8px">{{ action_text }}</div>
+    <div class="levels">
+      <div class="level level-tp">
+        <div class="lbl">🎯 Take-profit</div>
+        <div class="val green">${{ "%.4f"|format(take_profit_price) }}</div>
+        <div style="font-size:11px;color:#3fb950;margin-top:2px">{% if is_short %}-20%{% else %}+20%{% endif %}</div>
+      </div>
+      <div class="level" style="background:#1f1f2e;">
+        <div class="lbl">📍 Prix d'entrée</div>
+        <div class="val" style="color:#58a6ff">${{ "%.4f"|format(pos.buy_price) }}</div>
+        <div style="font-size:11px;color:#58a6ff;margin-top:2px">entrée</div>
+      </div>
+      <div class="level level-sl">
+        <div class="lbl">🛑 Stop-loss</div>
+        <div class="val red">${{ "%.4f"|format(stop_loss_price) }}</div>
+        <div style="font-size:11px;color:#f85149;margin-top:2px">{% if is_short %}+8%{% else %}-8%{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if chart_data %}
+<div class="section">
+  <h2>Graphique 7 jours</h2>
+  <div class="chart-container">
+    <canvas id="priceChart" height="80"></canvas>
+  </div>
+</div>
+<script>
+const data = {{ chart_data | tojson }};
+const labels = data.map(d => new Date(d.t).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}));
+const prices = data.map(d => d.p);
+const entryPrice = {{ pos.buy_price }};
+const tpPrice = {{ take_profit_price }};
+const slPrice = {{ stop_loss_price }};
+
+new Chart(document.getElementById('priceChart'), {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: '{{ coin.upper() }}',
+      data: prices,
+      borderColor: '#58a6ff',
+      backgroundColor: 'rgba(88,166,255,0.05)',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: true,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      annotation: { annotations: {
+        entry: { type: 'line', yMin: entryPrice, yMax: entryPrice, borderColor: '#58a6ff', borderWidth: 1, borderDash: [4,4] },
+        tp: { type: 'line', yMin: tpPrice, yMax: tpPrice, borderColor: '#3fb950', borderWidth: 1, borderDash: [4,4] },
+        sl: { type: 'line', yMin: slPrice, yMax: slPrice, borderColor: '#f85149', borderWidth: 1, borderDash: [4,4] },
+      }}
+    },
+    scales: {
+      x: { display: false },
+      y: { grid: { color: '#21262d' }, ticks: { color: '#7d8590' } }
+    }
+  }
+});
+</script>
+{% endif %}
+
+</body>
+</html>
