@@ -208,11 +208,11 @@ async function fetchData() {
       strategy: 'Main',
       description: 'Stratégie principale du bot — orchestre tous les agents.',
       balance: s.balance || INITIAL,
-      total_value: (s.balance || INITIAL),  // rough — no invested breakdown
+      total_value: s.total_value || (s.balance || INITIAL),
       pnl: s.pnl || 0,
       pnl_pct: s.pnl ? (s.pnl / INITIAL * 100) : 0,
       open_positions: s.positions || 0,
-      total_trades: agents.trader?.info?.find(i => i.label === 'Trades fermés')?.value || '—',
+      total_trades: s.total_trades || 0,
       win_rate: s.win_rate || 0,
       stake_pct: 5,
       sl: 5,

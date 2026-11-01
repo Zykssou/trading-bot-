@@ -195,8 +195,9 @@ def api_agents():
             out.append({"text": f"[{t}] {s['coin'].upper()} {s['signal_type'].upper()} score:{s['score']}"})
         return out or [{"text": "Aucun signal récent"}]
 
+    total_value = balance + invested + unrealized_pnl
     data = {
-        "_stats": {"balance": balance, "pnl": pnl, "positions": len(positions), "win_rate": win_rate},
+        "_stats": {"balance": balance, "pnl": pnl, "total_value": total_value, "invested": invested, "unrealized_pnl": unrealized_pnl, "positions": len(positions), "win_rate": win_rate, "total_trades": total_trades},
         "_market_quiet": market_quiet,
         "scanner": {
             "role": "Surveillance des marchés crypto",
@@ -284,7 +285,10 @@ def api_agents():
 def api_traders():
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from agents.multi_trader import get_traders_summary
+        from agents.multi_trader import get_traders_summary, setup_traders
+        from database.db import init_multi_traders_db
+        init_multi_traders_db()
+        setup_traders()
         return jsonify(get_traders_summary())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
