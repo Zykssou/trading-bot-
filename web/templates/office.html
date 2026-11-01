@@ -1,1430 +1,1279 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Neural Trading Floor</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #050008; color: #e0e0ff; font-family: 'Courier New', monospace; overflow-x: hidden; }
-.header { background: #080010; border-bottom: 1px solid #3A0060; padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.logo { color: #FF2D78; font-size: 14px; font-weight: bold; letter-spacing: 3px; }
-.stats { display: flex; gap: 20px; }
-.stat .lbl { font-size: 8px; color: #440066; text-transform: uppercase; letter-spacing: 1px; }
-.stat .val { font-size: 13px; font-weight: bold; color: #AA44FF; }
-.stat .val.pos { color: #00FFCC; }
-.stat .val.neg { color: #FF2D78; }
-.refresh-btn { background: #1A0030; border: 1px solid #6600BB; color: #AA44FF; padding: 5px 14px; font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer; border-radius: 3px; }
-.refresh-btn:hover { background: #2A0050; }
-canvas { display: block; cursor: grab; }
-canvas:active { cursor: grabbing; }
-#hint { font-size: 8px; color: #220033; letter-spacing: 2px; text-align: center; padding: 3px 0 6px; text-transform: uppercase; }
-.overlay { display: none; position: fixed; inset: 0; background: rgba(5,0,8,0.88); z-index: 999; align-items: center; justify-content: center; }
-.overlay.open { display: flex; }
-.mbox { background: #08000F; border-radius: 6px; padding: 22px; width: min(440px, 94vw); max-height: 90vh; overflow-y: auto; position: relative; }
-.mclose { position: absolute; top: 10px; right: 14px; background: none; border: none; color: #FF4488; font-size: 18px; cursor: pointer; }
-.m-title { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-.m-role { font-size: 9px; color: #660088; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-.m-badge { display: inline-block; font-size: 9px; font-weight: bold; padding: 2px 8px; border-radius: 2px; margin-bottom: 14px; text-transform: uppercase; }
-.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-.info-cell { background: #0A0014; border: 1px solid #2A0040; padding: 8px 10px; border-radius: 3px; }
-.info-cell .lbl { font-size: 8px; color: #440066; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-.info-cell .val { font-size: 12px; font-weight: bold; color: #DDD; }
-.terminal { background: #02000A; border: 1px solid #1A0028; padding: 10px; font-size: 9px; max-height: 120px; overflow-y: auto; line-height: 1.7; color: #6622AA; }
-.terminal .t0 { color: #AA44FF; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Neural Trading Floor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #050008; color: #e0e0ff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* HEADER */
+    .header { background: #080012; border-bottom: 1px solid #3A0060; padding: 7px 16px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; flex-wrap: wrap; z-index: 10; }
+    .logo { color: #FF2D78; font-size: 13px; font-weight: bold; letter-spacing: 3px; white-space: nowrap; }
+    .hstats { display: flex; gap: 16px; flex: 1; justify-content: center; flex-wrap: wrap; }
+    .hstat { display: flex; flex-direction: column; align-items: center; }
+    .hl { font-size: 7px; color: #440055; text-transform: uppercase; letter-spacing: 1px; }
+    .hv { font-size: 12px; font-weight: bold; color: #AA44FF; }
+    .hv.pos { color: #00FFCC; }
+    .hv.neg { color: #FF2D78; }
+    .rbtn { background: #1A0030; border: 1px solid #6600BB; color: #AA44FF; padding: 4px 12px; font-family: 'Courier New', monospace; font-size: 10px; cursor: pointer; border-radius: 2px; white-space: nowrap; }
+    .rbtn:hover { background: #2A0050; }
+
+    /* MAIN LAYOUT */
+    .main { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+    /* LEFT PANEL */
+    .lpanel { width: 150px; flex-shrink: 0; background: rgba(5,0,15,0.95); border-right: 1px solid #2A0045; padding: 12px 8px; overflow-y: auto; z-index: 5; }
+    .panel-title { font-size: 8px; color: #440055; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #1A0030; }
+    .cat-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 3px; cursor: pointer; margin-bottom: 2px; font-size: 10px; color: #886699; transition: all 0.15s; }
+    .cat-item:hover, .cat-item.active { background: #1A0030; color: #CC88FF; }
+    .cat-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .lpanel-footer { margin-top: 16px; font-size: 7px; color: #220033; line-height: 1.8; }
+    .lpanel-footer span { display: block; }
+
+    /* CANVAS WRAP */
+    .cwrap { flex: 1; position: relative; overflow: hidden; }
+    canvas { display: block; cursor: grab; width: 100%; height: 100%; image-rendering: pixelated; }
+    canvas:active { cursor: grabbing; }
+
+    /* RIGHT PANEL */
+    .rpanel { width: 180px; flex-shrink: 0; background: rgba(5,0,15,0.95); border-left: 1px solid #2A0045; padding: 12px 8px; overflow-y: auto; z-index: 5; }
+    .setup-title { font-size: 8px; color: #440055; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #1A0030; }
+    .setup-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #0D0018; font-size: 9px; }
+    .setup-lbl { color: #553366; }
+    .setup-val { color: #CC88FF; font-weight: bold; }
+    .setup-val.pos { color: #00FFCC; }
+    .setup-val.neg { color: #FF2D78; }
+    .signal-list { margin-top: 10px; }
+    .signal-hdr { font-size: 7px; color: #440055; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
+    .signal-item { font-size: 8px; color: #553366; padding: 3px 0; border-bottom: 1px solid #0A0015; line-height: 1.4; }
+    .signal-item.buy { color: #00FFCC; }
+    .signal-item.sell { color: #FF4488; }
+    .signal-item.hold { color: #AA88FF; }
+
+    /* HINT */
+    #hint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 7px; color: #2A0044; letter-spacing: 2px; text-transform: uppercase; pointer-events: none; white-space: nowrap; }
+
+    /* MODAL */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(3,0,8,0.88); z-index: 999; align-items: center; justify-content: center; }
+    .overlay.open { display: flex; }
+    .mbox { background: #06000E; border: 1px solid #2A0045; border-radius: 5px; padding: 20px; width: min(420px,92vw); max-height: 85vh; overflow-y: auto; position: relative; }
+    .mclose { position: absolute; top: 8px; right: 12px; background: none; border: none; color: #FF4488; font-size: 16px; cursor: pointer; }
+    .m-name { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+    .m-role { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; color: #440055; margin-bottom: 10px; }
+    .m-badge { font-size: 8px; font-weight: bold; padding: 2px 8px; border-radius: 2px; margin-bottom: 12px; display: inline-block; text-transform: uppercase; }
+    .igrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+    .icell { background: #08000F; border: 1px solid #1A0028; padding: 7px 9px; border-radius: 2px; }
+    .icell .il { font-size: 7px; color: #440055; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+    .icell .iv { font-size: 11px; font-weight: bold; color: #DDD; }
+    .terminal { background: #02000A; border: 1px solid #1A0028; padding: 8px; font-size: 8px; max-height: 120px; overflow-y: auto; line-height: 1.7; color: #4A1A6A; }
+    .terminal .t0 { color: #9B30FF; }
+    .terminal .tbuy { color: #00FFCC; }
+    .terminal .tsell { color: #FF4488; }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: #030008; }
+    ::-webkit-scrollbar-thumb { background: #2A0045; border-radius: 2px; }
+  </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="logo">◈ NEURAL TRADING FLOOR</div>
-  <div class="stats">
-    <div class="stat">
-      <div class="lbl">Balance</div>
-      <div class="val" id="hbal">{{ balance | default(1000) }}€</div>
+  <div class="logo">&#9672; NEURAL TRADING FLOOR</div>
+  <div class="hstats">
+    <div class="hstat">
+      <span class="hl">Balance</span>
+      <span class="hv" id="hbal">{{ balance | default(1000) }}€</span>
     </div>
-    <div class="stat">
-      <div class="lbl">P&amp;L</div>
-      <div class="val" id="hpnl">{{ pnl | default(0) }}€</div>
+    <div class="hstat">
+      <span class="hl">P&amp;L</span>
+      <span class="hv" id="hpnl">{{ pnl | default(0) }}€</span>
     </div>
-    <div class="stat">
-      <div class="lbl">BTC</div>
-      <div class="val" id="hbtc">—</div>
+    <div class="hstat">
+      <span class="hl">BTC</span>
+      <span class="hv" id="hbtc">—</span>
     </div>
-    <div class="stat">
-      <div class="lbl">Agents</div>
-      <div class="val" id="hagents">6</div>
+    <div class="hstat">
+      <span class="hl">24h</span>
+      <span class="hv" id="h24h">—</span>
+    </div>
+    <div class="hstat">
+      <span class="hl">Positions</span>
+      <span class="hv" id="hpos">0</span>
+    </div>
+    <div class="hstat">
+      <span class="hl">Agents</span>
+      <span class="hv">6</span>
     </div>
   </div>
-  <button onclick="fetchBTC();fetchAgents();" class="refresh-btn">↻ Live</button>
+  <button class="rbtn" onclick="fetchBTC();fetchAgents();">&#8635; LIVE</button>
 </div>
 
-<canvas id="c"></canvas>
-<div id="hint">scroll to zoom · drag to pan · click agent monitor for details</div>
+<div class="main">
 
-<div class="overlay" id="modal" onclick="closeModal(event)">
+  <!-- LEFT PANEL -->
+  <div class="lpanel">
+    <div class="panel-title">Catégories</div>
+    <div class="cat-item active" onclick="setCategory(this,'SCALPER')">
+      <div class="cat-dot" style="background:#FF2D78"></div>SCALPER
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'MACRO')">
+      <div class="cat-dot" style="background:#00FFCC"></div>MACRO
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'NOTÍCIAS')">
+      <div class="cat-dot" style="background:#FF9900"></div>NOTÍCIAS
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'SWING')">
+      <div class="cat-dot" style="background:#AA44FF"></div>SWING
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'DAYTRADE')">
+      <div class="cat-dot" style="background:#00AAFF"></div>DAYTRADE
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'HOLD')">
+      <div class="cat-dot" style="background:#44FF88"></div>HOLD
+    </div>
+    <div class="cat-item" onclick="setCategory(this,'ANÁLISE')">
+      <div class="cat-dot" style="background:#FFD700"></div>ANÁLISE
+    </div>
+    <div class="lpanel-footer">
+      <span style="color:#3A0055;margin-top:20px;display:block;font-size:7px;">MARCHÉ</span>
+      <span id="lp-coins">25 COINS</span>
+      <span id="lp-agents">6 AGENTS</span>
+      <span id="lp-status" style="color:#00FFCC;">● LIVE</span>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="cwrap">
+    <canvas id="cv" width="1100" height="640"></canvas>
+    <div id="hint">SCROLL pour zoomer &nbsp;·&nbsp; DRAG pour déplacer &nbsp;·&nbsp; CLIC sur agent pour les détails</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="rpanel">
+    <div class="setup-title">Setup Actif</div>
+    <div class="setup-row"><span class="setup-lbl">Balance</span><span class="setup-val" id="rbal">{{ balance | default(1000) }}€</span></div>
+    <div class="setup-row"><span class="setup-lbl">P&amp;L</span><span class="setup-val" id="rpnl">{{ pnl | default(0) }}€</span></div>
+    <div class="setup-row"><span class="setup-lbl">Positions</span><span class="setup-val" id="rpos">0</span></div>
+    <div class="setup-row"><span class="setup-lbl">Win Rate</span><span class="setup-val" id="rwr">—</span></div>
+    <div class="setup-row"><span class="setup-lbl">Trades</span><span class="setup-val" id="rtr">0</span></div>
+    <div class="setup-row"><span class="setup-lbl">Mode</span><span class="setup-val" id="rmode">LIVE</span></div>
+
+    <div class="signal-list">
+      <div class="signal-hdr">Signaux récents</div>
+      <div id="signal-feed">
+        <div class="signal-item">En attente...</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- AGENT MODAL -->
+<div class="overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="mbox" id="mbox">
-    <button class="mclose" onclick="closeModalDirect()">✕</button>
-    <div class="m-title" id="m-title"></div>
-    <div class="m-role" id="m-role"></div>
-    <div class="m-badge" id="m-badge"></div>
-    <div class="info-grid" id="m-grid"></div>
-    <div class="terminal" id="m-terminal"></div>
+    <button class="mclose" onclick="closeModal()">&#10005;</button>
+    <div class="m-name" id="m-name">—</div>
+    <div class="m-role" id="m-role">—</div>
+    <div class="m-badge" id="m-badge">ACTIF</div>
+    <div class="igrid" id="m-grid"></div>
+    <div class="terminal" id="m-terminal"><span class="t0">Chargement...</span></div>
   </div>
 </div>
 
 <script>
-// ─────────────────────────────────────────────────────────────────
-// CONSTANTS & CANVAS SETUP
-// ─────────────────────────────────────────────────────────────────
-var canvas = document.getElementById('c');
-var ctx = canvas.getContext('2d');
-var W = 1000, H = 590;
-var TW = 60, TH = 30, WH = 35;
-var OX = 480, OY = 100;
+// ─────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────
+const W = 1100, H = 640;
+const TW = 56, TH = 28, WH = 32;
+const OX = 420, OY = 80;
 
-canvas.width = W;
-canvas.height = H;
-canvas.style.width = '100%';
-canvas.style.maxWidth = W + 'px';
-canvas.style.margin = '0 auto';
-canvas.style.display = 'block';
-
-// ─────────────────────────────────────────────────────────────────
-// ISOMETRIC PROJECTION
-// ─────────────────────────────────────────────────────────────────
-function iso(gx, gy, gz) {
-  gz = gz || 0;
-  return {
-    x: OX + (gx - gy) * TW / 2,
-    y: OY + (gx + gy) * TH / 2 - gz * WH
-  };
+function iso(gx, gy, gz=0) {
+  return { x: OX + (gx - gy) * TW / 2, y: OY + (gx + gy) * TH / 2 - gz * WH };
 }
 
-// ─────────────────────────────────────────────────────────────────
-// ZOOM & PAN
-// ─────────────────────────────────────────────────────────────────
-var scale = 1.0;
-var panX = 0, panY = 0;
-var isDragging = false;
-var lastMouse = null;
-var mouseMovedDuringDrag = false;
+// ─────────────────────────────────────────────────────────────
+// COIN DESKS
+// ─────────────────────────────────────────────────────────────
+const COIN_DESKS = [
+  // Row 1 (gy=1): back row
+  { sym:'BTC',    gx:3,  gy:1,  color:'#F7931A' },
+  { sym:'ETH',    gx:6,  gy:1,  color:'#627EEA' },
+  { sym:'SOL',    gx:9,  gy:1,  color:'#9945FF' },
+  { sym:'BNB',    gx:12, gy:1,  color:'#F3BA2F' },
+  { sym:'XRP',    gx:15, gy:1,  color:'#00AAE4' },
+  // Row 2 (gy=3)
+  { sym:'ADA',    gx:2,  gy:3,  color:'#0033AD' },
+  { sym:'DOT',    gx:5,  gy:3,  color:'#E6007A' },
+  { sym:'AVAX',   gx:8,  gy:3,  color:'#E84142' },
+  { sym:'LINK',   gx:11, gy:3,  color:'#2A5ADA' },
+  { sym:'UNI',    gx:14, gy:3,  color:'#FF007A' },
+  // Row 3 (gy=5)
+  { sym:'DOGE',   gx:3,  gy:5,  color:'#C2A633' },
+  { sym:'AAVE',   gx:6,  gy:5,  color:'#B6509E' },
+  { sym:'NEAR',   gx:9,  gy:5,  color:'#00C08B' },
+  { sym:'INJ',    gx:12, gy:5,  color:'#00BAFF' },
+  { sym:'SUI',    gx:15, gy:5,  color:'#4DA2FF' },
+  // Row 4 (gy=7)
+  { sym:'PEPE',   gx:2,  gy:7,  color:'#3CB371' },
+  { sym:'SHIB',   gx:5,  gy:7,  color:'#E44D26' },
+  { sym:'FLOKI',  gx:8,  gy:7,  color:'#F5A623' },
+  { sym:'BONK',   gx:11, gy:7,  color:'#FF6B35' },
+  { sym:'FET',    gx:14, gy:7,  color:'#0A84FF' },
+  // Row 5 (gy=9): front row
+  { sym:'TAO',    gx:3,  gy:9,  color:'#888DFF' },
+  { sym:'RENDER', gx:6,  gy:9,  color:'#FF4E17' },
+  { sym:'WLD',    gx:9,  gy:9,  color:'#F5F5F5' },
+  { sym:'ZEC',    gx:12, gy:9,  color:'#F4B728' },
+  { sym:'XLM',    gx:15, gy:9,  color:'#14B6E7' },
+];
 
-canvas.addEventListener('wheel', function(e) {
+// ─────────────────────────────────────────────────────────────
+// MAIN AGENTS
+// ─────────────────────────────────────────────────────────────
+const MAIN_AGENTS = [
+  { id:'scanner',   name:'Scanner',    role:'Market Watch',  color:'#00FFCC', gx:3,  gy:2, size:'large' },
+  { id:'analyste',  name:'Analyste',   role:'Signals',       color:'#00AAFF', gx:9,  gy:2, size:'large' },
+  { id:'trader',    name:'★ Trader',   role:'Execution',     color:'#FFD700', gx:15, gy:2, size:'large' },
+  { id:'risk',      name:'Risk',       role:'Risk Control',  color:'#FF4488', gx:3,  gy:6, size:'large' },
+  { id:'portfolio', name:'Portfolio',  role:'Assets',        color:'#44FF88', gx:9,  gy:6, size:'large' },
+  { id:'reporter',  name:'Reporter',   role:'Alerts',        color:'#CC88FF', gx:15, gy:6, size:'large' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+
+let scale = 1, panX = 0, panY = 0, dragging = false, lastMouse = null;
+let frameCount = 0;
+let btcKlines = [], btcTicker = null, btcApiOk = false;
+let interval = '15m';
+let apiData = {};
+let bubbles = [];
+let coinPriceChanges = {}; // sym -> {pct, dir}
+let animPhase = 0; // for animations
+let clickTargets = []; // [{x,y,w,h,agent}] for hit testing
+
+const BUBBLE_TEXTS = ['COMPRA','VENDA','HOLD','ALERTA','SCAN','WAIT','PUMP?','DUMP!','ATH','SUP','RSI','MACD','BUY?','SELL?'];
+
+// ─────────────────────────────────────────────────────────────
+// ZOOM + PAN
+// ─────────────────────────────────────────────────────────────
+canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  var factor = e.deltaY < 0 ? 1.1 : 0.9;
-  scale = Math.max(0.5, Math.min(2.0, scale * factor));
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top)  * (H / rect.height);
+  const newScale = Math.max(0.4, Math.min(2.5, scale * factor));
+  panX = mx - (mx - panX) * (newScale / scale);
+  panY = my - (my - panY) * (newScale / scale);
+  scale = newScale;
 }, { passive: false });
 
-canvas.addEventListener('mousedown', function(e) {
-  isDragging = true;
-  mouseMovedDuringDrag = false;
+canvas.addEventListener('mousedown', e => { dragging = true; lastMouse = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  panX += (e.clientX - lastMouse.x) * (W / canvas.getBoundingClientRect().width);
+  panY += (e.clientY - lastMouse.y) * (H / canvas.getBoundingClientRect().height);
   lastMouse = { x: e.clientX, y: e.clientY };
 });
-canvas.addEventListener('mousemove', function(e) {
-  if (!isDragging) return;
-  var dx = e.clientX - lastMouse.x;
-  var dy = e.clientY - lastMouse.y;
-  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) mouseMovedDuringDrag = true;
-  panX += dx;
-  panY += dy;
-  lastMouse = { x: e.clientX, y: e.clientY };
-});
-canvas.addEventListener('mouseup', function(e) {
-  isDragging = false;
-});
-canvas.addEventListener('mouseleave', function() { isDragging = false; });
+canvas.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('mouseleave', () => { dragging = false; });
 
-function toCanvasCoords(e) {
-  var r = canvas.getBoundingClientRect();
-  var scaleX = canvas.width / r.width;
-  return {
-    x: ((e.clientX - r.left) * scaleX - panX) / scale,
-    y: ((e.clientY - r.top) * scaleX - panY) / scale
-  };
-}
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * (W / rect.width);
+  const cy = (e.clientY - rect.top)  * (H / rect.height);
+  // Convert to world coords
+  const wx = (cx - panX) / scale;
+  const wy = (cy - panY) / scale;
+  for (const t of clickTargets) {
+    if (wx >= t.x && wx <= t.x + t.w && wy >= t.y && wy <= t.y + t.h) {
+      openModal(t.agent);
+      return;
+    }
+  }
+});
 
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // BINANCE API
-// ─────────────────────────────────────────────────────────────────
-var BINANCE = 'https://api.binance.com/api/v3';
-var btcKlines = [];
-var btcTicker = {};
-var currentInterval = '15m';
-var btcApiOk = false;
-
+// ─────────────────────────────────────────────────────────────
 async function fetchBTC() {
   try {
-    var kRes = await fetch(BINANCE + '/klines?symbol=BTCUSDT&interval=' + currentInterval + '&limit=80');
-    var tRes = await fetch(BINANCE + '/ticker/24hr?symbol=BTCUSDT');
-    if (!kRes.ok || !tRes.ok) throw new Error('API error');
-    var kData = await kRes.json();
+    const [kRes, tRes] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=80`),
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT`)
+    ]);
+    btcKlines = (await kRes.json()).map(k => ({ t: k[0]/1000, o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
     btcTicker = await tRes.json();
-    btcKlines = kData.map(function(k) {
-      return {
-        t: k[0] / 1000,
-        o: parseFloat(k[1]),
-        h: parseFloat(k[2]),
-        l: parseFloat(k[3]),
-        c: parseFloat(k[4]),
-        v: parseFloat(k[5])
-      };
-    });
     btcApiOk = true;
-    var price = parseFloat(btcTicker.lastPrice);
-    if (!isNaN(price)) {
-      document.getElementById('hbtc').textContent = '$' + price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    }
+    updateHeaderBTC();
   } catch(e) {
     btcApiOk = false;
-    console.warn('[BTC] API unavailable:', e.message);
+    console.warn('Binance API error:', e.message);
   }
 }
 
-fetchBTC();
-setInterval(fetchBTC, 10000);
-
-// ─────────────────────────────────────────────────────────────────
-// TIMEFRAME BUTTONS ZONES
-// ─────────────────────────────────────────────────────────────────
-var TF_OPTIONS = ['1m','5m','15m','1h','4h','1d'];
-var tfZones = [];
-
-// ─────────────────────────────────────────────────────────────────
-// AGENTS DATA
-// ─────────────────────────────────────────────────────────────────
-var AGENTS = [
-  { id:'scanner',   name:'Scanner',   role:'Market Watch',    color:'#00FFCC', pants:'#0A1525', skin:'#F4C794', gx:2,  gy:2 },
-  { id:'analyste',  name:'Analyste',  role:'Signal Analysis', color:'#00AAFF', pants:'#0A0A25', skin:'#D4956A', gx:5,  gy:2 },
-  { id:'trader',    name:'★ Trader',  role:'Order Execution', color:'#FFD700', pants:'#1A1A05', skin:'#F4C794', gx:11, gy:2 },
-  { id:'risk',      name:'Risk Mgr',  role:'Risk Control',    color:'#FF4488', pants:'#1A0A10', skin:'#D4956A', gx:2,  gy:6 },
-  { id:'portfolio', name:'Portfolio', role:'Asset Manager',   color:'#44FF88', pants:'#0A1A08', skin:'#F4C794', gx:5,  gy:6 },
-  { id:'reporter',  name:'Reporter',  role:'Telegram Alerts', color:'#CC88FF', pants:'#10082A', skin:'#D4956A', gx:11, gy:6 }
-];
-
-// Agent state machine
-var agentStates = {};
-var agentWalkPhase = {};
-var agentBreakTimer = {};
-
-AGENTS.forEach(function(a, i) {
-  agentStates[a.id] = { state: 'working', wx: a.gx + 0.9, wy: a.gy + 0.8, tx: a.gx + 0.9, ty: a.gy + 0.8 };
-  agentWalkPhase[a.id] = 0;
-  agentBreakTimer[a.id] = 400 + i * 200;
-});
-
-var WALK_SPEED = 0.025;
-var BREAK_SPOTS = [
-  { x: 14.2, y: 9.5 },
-  { x: 1.3,  y: 9.5 }
-];
-
-function updateAgents() {
-  AGENTS.forEach(function(a, i) {
-    var st = agentStates[a.id];
-    agentBreakTimer[a.id]--;
-
-    if (st.state === 'working') {
-      agentWalkPhase[a.id] = 0;
-      if (agentBreakTimer[a.id] <= 0) {
-        st.state = 'to_break';
-        var spot = BREAK_SPOTS[i % BREAK_SPOTS.length];
-        st.tx = spot.x;
-        st.ty = spot.y;
-        agentBreakTimer[a.id] = 350 + i * 80;
-      }
-    } else if (st.state === 'to_break') {
-      var dx = st.tx - st.wx;
-      var dy = st.ty - st.wy;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < WALK_SPEED) {
-        st.wx = st.tx;
-        st.wy = st.ty;
-        st.state = 'at_break';
-        agentBreakTimer[a.id] = 200 + i * 40;
-      } else {
-        st.wx += (dx / dist) * WALK_SPEED;
-        st.wy += (dy / dist) * WALK_SPEED;
-        agentWalkPhase[a.id] += 0.15;
-      }
-    } else if (st.state === 'at_break') {
-      if (agentBreakTimer[a.id] <= 0) {
-        st.state = 'returning';
-        st.tx = a.gx + 0.9;
-        st.ty = a.gy + 0.8;
-      }
-    } else if (st.state === 'returning') {
-      var dx = st.tx - st.wx;
-      var dy = st.ty - st.wy;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < WALK_SPEED) {
-        st.wx = st.tx;
-        st.wy = st.ty;
-        st.state = 'working';
-        agentBreakTimer[a.id] = 500 + i * 150;
-      } else {
-        st.wx += (dx / dist) * WALK_SPEED;
-        st.wy += (dy / dist) * WALK_SPEED;
-        agentWalkPhase[a.id] += 0.15;
-      }
-    }
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────
-// FLASK API DATA
-// ─────────────────────────────────────────────────────────────────
-var apiData = {};
-
-async function fetchAgents() {
+// Fetch random price changes for coin desks
+async function fetchCoinChanges() {
+  const coins = ['BTC','ETH','SOL','BNB','XRP','ADA','DOT','AVAX','LINK','UNI'];
   try {
-    var r = await fetch('/api/agents');
-    if (!r.ok) throw new Error('no api');
-    apiData = await r.json();
-    var s = apiData._stats || {};
-    if (s.balance !== undefined) {
-      document.getElementById('hbal').textContent = s.balance.toFixed(2) + '€';
-    }
-    if (s.pnl !== undefined) {
-      var el = document.getElementById('hpnl');
-      el.textContent = (s.pnl >= 0 ? '+' : '') + s.pnl.toFixed(2) + '€';
-      el.className = 'val ' + (s.pnl >= 0 ? 'pos' : 'neg');
-    }
+    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbols=[' +
+      coins.map(c => `"${c}USDT"`).join(',') + ']');
+    const data = await res.json();
+    data.forEach(d => {
+      const sym = d.symbol.replace('USDT','');
+      coinPriceChanges[sym] = { pct: parseFloat(d.priceChangePercent).toFixed(2), dir: parseFloat(d.priceChangePercent) >= 0 ? 1 : -1 };
+    });
   } catch(e) {}
 }
-fetchAgents();
-setInterval(fetchAgents, 60000);
 
-// ─────────────────────────────────────────────────────────────────
-// STEAM PARTICLES (coffee station)
-// ─────────────────────────────────────────────────────────────────
-var steamParticles = [];
-function updateSteam() {
-  var coffeePos = iso(14.2, 9.0, 1.1);
-  if (Math.random() < 0.18) {
-    steamParticles.push({
-      x: coffeePos.x + (Math.random() - 0.5) * 8,
-      y: coffeePos.y,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: -0.6 - Math.random() * 0.4,
-      life: 1.0,
-      size: 1.5 + Math.random() * 2
-    });
-  }
-  steamParticles = steamParticles.filter(function(p) {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 0.016;
-    return p.life > 0;
-  });
-  if (steamParticles.length > 50) steamParticles.splice(0, 10);
+function updateHeaderBTC() {
+  if (!btcTicker) return;
+  const price = parseFloat(btcTicker.lastPrice);
+  const change = parseFloat(btcTicker.priceChangePercent);
+  const hbtc = document.getElementById('hbtc');
+  const h24h = document.getElementById('h24h');
+  hbtc.textContent = '$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  hbtc.className = 'hv';
+  h24h.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+  h24h.className = 'hv ' + (change >= 0 ? 'pos' : 'neg');
 }
 
-// ─────────────────────────────────────────────────────────────────
-// SERVER LED BLINK STATE
-// ─────────────────────────────────────────────────────────────────
-var ledColors = ['#00FF44','#FF4400','#0088FF','#FFFF00','#FF00FF','#00FFFF'];
-var ledStates = [1, 0, 1, 1, 0, 1];
-setInterval(function() {
-  var idx = Math.floor(Math.random() * ledStates.length);
-  ledStates[idx] = ledStates[idx] ? 0 : 1;
-}, 600);
+// ─────────────────────────────────────────────────────────────
+// AGENTS API
+// ─────────────────────────────────────────────────────────────
+async function fetchAgents() {
+  try {
+    const res = await fetch('/api/agents');
+    apiData = await res.json();
+    updateRightPanel();
+  } catch(e) {
+    // use defaults
+  }
+}
 
-// ─────────────────────────────────────────────────────────────────
-// MONITOR CLICK ZONES
-// ─────────────────────────────────────────────────────────────────
-var monitorZones = [];
+function updateRightPanel() {
+  const s = apiData._stats || {};
+  const bal = s.balance || '{{ balance | default(1000) }}';
+  const pnl = s.pnl || '{{ pnl | default(0) }}';
+  const pos = s.open_positions || 0;
+  const wr  = s.win_rate ? (s.win_rate * 100).toFixed(1) + '%' : '—';
+  const tr  = s.total_trades || 0;
 
-// ─────────────────────────────────────────────────────────────────
+  document.getElementById('rbal').textContent = (typeof bal === 'number' ? bal.toFixed(2) : bal) + '€';
+  document.getElementById('rpos').textContent = pos;
+  document.getElementById('rwr').textContent  = wr;
+  document.getElementById('rtr').textContent  = tr;
+
+  const pnlEl = document.getElementById('rpnl');
+  const pnlVal = typeof pnl === 'number' ? pnl : parseFloat(pnl) || 0;
+  pnlEl.textContent = (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(2) + '€';
+  pnlEl.className = 'setup-val ' + (pnlVal >= 0 ? 'pos' : 'neg');
+
+  // Signal feed
+  const reporter = apiData.reporter || {};
+  const logs = reporter.logs || [];
+  const feed = document.getElementById('signal-feed');
+  if (logs.length > 0) {
+    feed.innerHTML = logs.slice(-8).reverse().map(l => {
+      const cl = l.toLowerCase().includes('buy') || l.toLowerCase().includes('achat') ? 'buy'
+                 : l.toLowerCase().includes('sell') || l.toLowerCase().includes('vente') ? 'sell' : '';
+      return `<div class="signal-item ${cl}">${l.substring(0, 28)}</div>`;
+    }).join('');
+  } else {
+    feed.innerHTML = '<div class="signal-item">En attente de signaux...</div>';
+  }
+
+  // Header
+  document.getElementById('hbal').textContent = (typeof bal === 'number' ? bal.toFixed(0) : bal) + '€';
+  document.getElementById('hpnl').textContent = (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(0) + '€';
+  document.getElementById('hpnl').className   = 'hv ' + (pnlVal >= 0 ? 'pos' : 'neg');
+  document.getElementById('hpos').textContent = pos;
+}
+
+// ─────────────────────────────────────────────────────────────
 // MODAL
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 function openModal(agent) {
-  var el = document.getElementById('modal');
-  var titleEl = document.getElementById('m-title');
-  var roleEl = document.getElementById('m-role');
-  var badgeEl = document.getElementById('m-badge');
-  var gridEl = document.getElementById('m-grid');
-  var termEl = document.getElementById('m-terminal');
-  var mbox = document.getElementById('mbox');
+  document.getElementById('modal').classList.add('open');
+  const nameEl  = document.getElementById('m-name');
+  const roleEl  = document.getElementById('m-role');
+  const badgeEl = document.getElementById('m-badge');
+  const gridEl  = document.getElementById('m-grid');
+  const termEl  = document.getElementById('m-terminal');
 
-  titleEl.textContent = agent.name;
-  titleEl.style.color = agent.color;
-  roleEl.textContent = agent.role;
-  mbox.style.border = '1px solid ' + agent.color;
-  mbox.style.boxShadow = '0 0 30px ' + agent.color + '44';
+  nameEl.textContent  = agent.name;
+  nameEl.style.color  = agent.color;
+  roleEl.textContent  = agent.role;
+  badgeEl.textContent = 'ACTIF';
+  badgeEl.style.background = agent.color + '22';
+  badgeEl.style.color = agent.color;
+  badgeEl.style.border = '1px solid ' + agent.color + '44';
 
-  var st = agentStates[agent.id];
-  var stateLabel = st.state === 'working' ? 'ACTIF' : (st.state === 'at_break' ? 'PAUSE' : 'EN ROUTE');
-  var stateColor = st.state === 'working' ? '#00FF88' : (st.state === 'at_break' ? '#FFAA00' : '#FF4488');
-  badgeEl.textContent = stateLabel;
-  badgeEl.style.background = stateColor + '22';
-  badgeEl.style.color = stateColor;
-  badgeEl.style.border = '1px solid ' + stateColor;
+  const agentData = apiData[agent.id] || {};
+  const entries = Object.entries(agentData).filter(([k]) => k !== 'logs').slice(0, 6);
 
-  var agentApi = apiData[agent.id] || {};
-  var info = agentApi.info || [
-    { label: 'Status', value: stateLabel },
-    { label: 'Uptime', value: '—' },
-    { label: 'Signals', value: '—' },
-    { label: 'Trades', value: '—' },
-    { label: 'Win Rate', value: '—' },
-    { label: 'Last Action', value: '—' }
-  ];
+  gridEl.innerHTML = entries.length > 0 ? entries.map(([k, v]) =>
+    `<div class="icell"><div class="il">${k}</div><div class="iv">${typeof v === 'object' ? JSON.stringify(v) : v}</div></div>`
+  ).join('') : `
+    <div class="icell"><div class="il">Status</div><div class="iv" style="color:${agent.color}">ACTIF</div></div>
+    <div class="icell"><div class="il">Rôle</div><div class="iv">${agent.role}</div></div>
+    <div class="icell"><div class="il">ID</div><div class="iv">${agent.id}</div></div>
+    <div class="icell"><div class="il">Uptime</div><div class="iv">—</div></div>
+  `;
 
-  gridEl.innerHTML = '';
-  info.forEach(function(item) {
-    gridEl.innerHTML += '<div class="info-cell"><div class="lbl">' + (item.label || '') + '</div><div class="val">' + (item.value || '—') + '</div></div>';
-  });
-
-  var logs = agentApi.logs || ['> Aucune donnée disponible'];
-  termEl.innerHTML = logs.map(function(l, i) {
-    return '<div class="' + (i === 0 ? 't0' : '') + '">' + l + '</div>';
+  const logs = agentData.logs || [`[${agent.name}] Aucun log disponible.`];
+  termEl.innerHTML = logs.slice(-20).map(l => {
+    const cl = l.toLowerCase().includes('buy') || l.toLowerCase().includes('achat') ? 'tbuy'
+               : l.toLowerCase().includes('sell') || l.toLowerCase().includes('vente') ? 'tsell' : 't0';
+    return `<div class="${cl}">${l}</div>`;
   }).join('');
   termEl.scrollTop = termEl.scrollHeight;
-
-  el.classList.add('open');
 }
 
-function closeModal(e) {
-  if (e.target === document.getElementById('modal')) {
-    document.getElementById('modal').classList.remove('open');
-  }
-}
-function closeModalDirect() {
+function closeModal() {
   document.getElementById('modal').classList.remove('open');
 }
 
-// ─────────────────────────────────────────────────────────────────
-// CANVAS CLICK
-// ─────────────────────────────────────────────────────────────────
-canvas.addEventListener('click', function(e) {
-  if (mouseMovedDuringDrag) return;
-  var c = toCanvasCoords(e);
-  var cx = c.x;
-  var cy = c.y;
+// ─────────────────────────────────────────────────────────────
+// CATEGORY SELECTION
+// ─────────────────────────────────────────────────────────────
+function setCategory(el, name) {
+  document.querySelectorAll('.cat-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
 
-  // Check timeframe buttons
-  for (var i = 0; i < tfZones.length; i++) {
-    var z = tfZones[i];
-    if (cx >= z.x1 && cx <= z.x2 && cy >= z.y1 && cy <= z.y2) {
-      currentInterval = z.interval;
-      fetchBTC();
-      return;
-    }
+// ─────────────────────────────────────────────────────────────
+// BUBBLES
+// ─────────────────────────────────────────────────────────────
+function updateBubbles() {
+  if (frameCount % 120 === 0) {
+    bubbles = [];
+    const picks = [...COIN_DESKS].sort(() => Math.random() - 0.5).slice(0, 6);
+    picks.forEach(cd => {
+      bubbles.push({
+        gx: cd.gx, gy: cd.gy,
+        text: BUBBLE_TEXTS[Math.floor(Math.random() * BUBBLE_TEXTS.length)],
+        color: cd.color,
+        life: 115
+      });
+    });
   }
+  bubbles.forEach(b => b.life--);
+  bubbles = bubbles.filter(b => b.life > 0);
+}
 
-  // Check monitor zones
-  for (var j = 0; j < monitorZones.length; j++) {
-    var mz = monitorZones[j];
-    if (cx >= mz.x1 && cx <= mz.x2 && cy >= mz.y1 && cy <= mz.y2) {
-      openModal(mz.agent);
-      return;
-    }
-  }
-});
+// ─────────────────────────────────────────────────────────────
+// DRAWING HELPERS
+// ─────────────────────────────────────────────────────────────
+function hexAlpha(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
 
-// ─────────────────────────────────────────────────────────────────
-// DRAW: ISOMETRIC FLOOR TILE
-// ─────────────────────────────────────────────────────────────────
-function drawTile(gx, gy) {
-  var tl = iso(gx,     gy,     0);
-  var tr = iso(gx + 1, gy,     0);
-  var br = iso(gx + 1, gy + 1, 0);
-  var bl = iso(gx,     gy + 1, 0);
-
-  var fade = 1.0 - (gy / 12) * 0.15;
-  ctx.globalAlpha = fade;
-
-  var isEven = (gx + gy) % 2 === 0;
+function drawIsoRect(p, w, h, d, topColor, leftColor, rightColor) {
+  // top face
   ctx.beginPath();
-  ctx.moveTo(tl.x, tl.y);
-  ctx.lineTo(tr.x, tr.y);
-  ctx.lineTo(br.x, br.y);
-  ctx.lineTo(bl.x, bl.y);
+  ctx.moveTo(p.x,       p.y);
+  ctx.lineTo(p.x + w,   p.y - w * TH / TW);
+  ctx.lineTo(p.x + w - h * TW / TH, p.y - w * TH / TW - h);
+  ctx.lineTo(p.x - h * TW / TH, p.y - h);
   ctx.closePath();
-
-  var grad = ctx.createLinearGradient(tl.x, tl.y, br.x, br.y);
-  if (isEven) {
-    grad.addColorStop(0, '#1C0033');
-    grad.addColorStop(0.5, '#140025');
-    grad.addColorStop(1, '#0F001C');
-  } else {
-    grad.addColorStop(0, '#230040');
-    grad.addColorStop(0.5, '#1A002E');
-    grad.addColorStop(1, '#140025');
-  }
-  ctx.fillStyle = grad;
+  ctx.fillStyle = topColor;
   ctx.fill();
-
-  // Top-left edge highlight
+  // left face
   ctx.beginPath();
-  ctx.moveTo(tl.x, tl.y);
-  ctx.lineTo(tr.x, tr.y);
-  ctx.strokeStyle = '#2A0050';
-  ctx.lineWidth = 0.5;
-  ctx.globalAlpha = fade * 0.6;
-  ctx.stroke();
-
+  ctx.moveTo(p.x - h * TW / TH, p.y - h);
+  ctx.lineTo(p.x,                p.y);
+  ctx.lineTo(p.x,                p.y + d);
+  ctx.lineTo(p.x - h * TW / TH, p.y - h + d);
+  ctx.closePath();
+  ctx.fillStyle = leftColor;
+  ctx.fill();
+  // right face
   ctx.beginPath();
-  ctx.moveTo(tl.x, tl.y);
-  ctx.lineTo(bl.x, bl.y);
-  ctx.stroke();
-
-  ctx.globalAlpha = 1;
+  ctx.moveTo(p.x + w,   p.y - w * TH / TW);
+  ctx.lineTo(p.x + w - h * TW / TH, p.y - w * TH / TW - h);
+  ctx.lineTo(p.x + w - h * TW / TH, p.y - w * TH / TW - h + d);
+  ctx.lineTo(p.x + w,   p.y - w * TH / TW + d);
+  ctx.closePath();
+  ctx.fillStyle = rightColor;
+  ctx.fill();
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DRAW: WALLS
-// ─────────────────────────────────────────────────────────────────
-function drawWalls() {
-  // Back wall (gy=0, gx=0..16)
-  for (var gx = 0; gx < 16; gx++) {
-    var bl = iso(gx,     0, 0);
-    var br = iso(gx + 1, 0, 0);
-    var tr = iso(gx + 1, 0, 4);
-    var tl = iso(gx,     0, 4);
-
-    ctx.beginPath();
-    ctx.moveTo(bl.x, bl.y);
-    ctx.lineTo(br.x, br.y);
-    ctx.lineTo(tr.x, tr.y);
-    ctx.lineTo(tl.x, tl.y);
-    ctx.closePath();
-
-    var wallGrad = ctx.createLinearGradient(bl.x, bl.y, tl.x, tl.y);
-    wallGrad.addColorStop(0, '#150030');
-    wallGrad.addColorStop(0.5, '#1E003A');
-    wallGrad.addColorStop(1, '#28004A');
-    ctx.fillStyle = wallGrad;
-    ctx.fill();
-
-    for (var hz = 1; hz <= 3; hz++) {
-      var la = iso(gx,     0, hz);
-      var lb = iso(gx + 1, 0, hz);
-      ctx.beginPath();
-      ctx.moveTo(la.x, la.y);
-      ctx.lineTo(lb.x, lb.y);
-      ctx.strokeStyle = '#3A0060';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
-
-    // Neon base strip
-    var nb0 = iso(gx,     0, 0.05);
-    var nb1 = iso(gx + 1, 0, 0.05);
-    var nt0 = iso(gx,     0, 0.25);
-    var nt1 = iso(gx + 1, 0, 0.25);
-    ctx.beginPath();
-    ctx.moveTo(nb0.x, nb0.y);
-    ctx.lineTo(nb1.x, nb1.y);
-    ctx.lineTo(nt1.x, nt1.y);
-    ctx.lineTo(nt0.x, nt0.y);
-    ctx.closePath();
-    ctx.fillStyle = '#8800FF';
-    ctx.shadowColor = '#8800FF';
-    ctx.shadowBlur = 12;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+function drawPill(x, y, text, bgColor, textColor, borderColor, fontSize = 9) {
+  ctx.font = `bold ${fontSize}px "Courier New", monospace`;
+  const tw = ctx.measureText(text).width;
+  const pw = tw + 10, ph = fontSize + 6;
+  const rx = x - pw / 2, ry = y - ph / 2;
+  ctx.beginPath();
+  ctx.roundRect(rx, ry, pw, ph, ph / 2);
+  ctx.fillStyle = bgColor;
+  ctx.fill();
+  if (borderColor) {
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
-
-  // Left wall (gx=0, gy=0..12)
-  for (var gy = 0; gy < 12; gy++) {
-    var bl = iso(0, gy,     0);
-    var br = iso(0, gy + 1, 0);
-    var tr = iso(0, gy + 1, 4);
-    var tl = iso(0, gy,     4);
-
-    ctx.beginPath();
-    ctx.moveTo(bl.x, bl.y);
-    ctx.lineTo(br.x, br.y);
-    ctx.lineTo(tr.x, tr.y);
-    ctx.lineTo(tl.x, tl.y);
-    ctx.closePath();
-
-    var lwGrad = ctx.createLinearGradient(bl.x, bl.y, br.x, br.y);
-    lwGrad.addColorStop(0, '#12002A');
-    lwGrad.addColorStop(1, '#1A0035');
-    ctx.fillStyle = lwGrad;
-    ctx.globalAlpha = 0.9;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    for (var hz = 1; hz <= 3; hz++) {
-      var la = iso(0, gy,     hz);
-      var lb = iso(0, gy + 1, hz);
-      ctx.beginPath();
-      ctx.moveTo(la.x, la.y);
-      ctx.lineTo(lb.x, lb.y);
-      ctx.strokeStyle = '#3A0060';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
-
-    var nb0 = iso(0, gy,     0.05);
-    var nb1 = iso(0, gy + 1, 0.05);
-    var nt0 = iso(0, gy,     0.25);
-    var nt1 = iso(0, gy + 1, 0.25);
-    ctx.beginPath();
-    ctx.moveTo(nb0.x, nb0.y);
-    ctx.lineTo(nb1.x, nb1.y);
-    ctx.lineTo(nt1.x, nt1.y);
-    ctx.lineTo(nt0.x, nt0.y);
-    ctx.closePath();
-    ctx.fillStyle = '#8800FF';
-    ctx.shadowColor = '#8800FF';
-    ctx.shadowBlur = 10;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  }
+  ctx.fillStyle = textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DRAW: FLOOR
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// DRAW FLOOR TILE
+// ─────────────────────────────────────────────────────────────
 function drawFloor() {
-  for (var gx = 1; gx <= 15; gx++) {
-    for (var gy = 1; gy <= 11; gy++) {
-      drawTile(gx, gy);
+  for (let gy = 0; gy <= 11; gy++) {
+    for (let gx = 0; gx <= 18; gx++) {
+      const p = iso(gx, gy, 0);
+      const light = (gx + gy) % 2 === 0 ? '#0F001E' : '#140028';
+      ctx.beginPath();
+      ctx.moveTo(p.x,              p.y);
+      ctx.lineTo(p.x + TW/2,       p.y - TH/2);
+      ctx.lineTo(p.x + TW,         p.y);
+      ctx.lineTo(p.x + TW/2,       p.y + TH/2);
+      ctx.closePath();
+      ctx.fillStyle = light;
+      ctx.fill();
+      ctx.strokeStyle = '#1A0032';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
     }
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// SCREEN CORNERS
-// ─────────────────────────────────────────────────────────────────
-function computeScreenCorners() {
-  return {
-    bl: iso(3,  0, 0.4),
-    br: iso(13, 0, 0.4),
-    tl: iso(3,  0, 3.9),
-    tr: iso(13, 0, 3.9)
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: CHART CONTENT (in screen-local space)
-// ─────────────────────────────────────────────────────────────────
-var chartW = 600, chartH = 300;
-
-function drawChartContent() {
-  ctx.fillStyle = '#020008';
-  ctx.fillRect(0, 0, chartW, chartH);
-
-  var klines = btcKlines;
-  var n = klines.length;
-  if (n === 0) return;
-
-  var lastK = klines[n - 1];
-  var prevK = n > 1 ? klines[n - 2] : klines[0];
-  var price = lastK.c;
-  var prevPrice = prevK.c;
-  var priceColor = price >= prevPrice ? '#00FFCC' : '#FF2D78';
-
-  // ── Header ──
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 18px Courier New';
-  ctx.textAlign = 'left';
-  ctx.fillText('BTC/USDT', 10, 22);
-
-  ctx.font = 'bold 15px Courier New';
-  ctx.fillStyle = priceColor;
-  ctx.textAlign = 'right';
-  var priceStr = '$' + price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  ctx.fillText(priceStr, chartW - 10, 22);
-
-  if (btcTicker && btcTicker.priceChangePercent !== undefined) {
-    var pct = parseFloat(btcTicker.priceChangePercent);
-    ctx.font = '9px Courier New';
-    ctx.fillStyle = pct >= 0 ? '#00FFCC' : '#FF2D78';
-    ctx.textAlign = 'right';
-    ctx.fillText((pct >= 0 ? '+' : '') + pct.toFixed(2) + '%  24h', chartW - 10, 34);
-
-    var hi = parseFloat(btcTicker.highPrice).toFixed(0);
-    var lo = parseFloat(btcTicker.lowPrice).toFixed(0);
-    ctx.fillStyle = '#6644AA';
-    ctx.font = '8px Courier New';
-    ctx.textAlign = 'left';
-    ctx.fillText('H: $' + hi + '   L: $' + lo, 10, 35);
-  }
-
-  // ── Timeframe buttons ──
-  TF_OPTIONS.forEach(function(tf, i) {
-    var bx = 10 + i * 55;
-    var by = 38;
-    var bw = 48;
-    var bh = 16;
-    var isActive = tf === currentInterval;
-
-    ctx.fillStyle = isActive ? '#9B30FF' : '#1A0030';
-    ctx.strokeStyle = isActive ? '#CC66FF' : '#3A0060';
-    ctx.lineWidth = 0.8;
-
+// ─────────────────────────────────────────────────────────────
+// DRAW BACK WALL & NEON
+// ─────────────────────────────────────────────────────────────
+function drawWalls() {
+  // Back wall: gy=0, gx=0..18
+  for (let gx = 0; gx <= 18; gx++) {
+    const pb = iso(gx, 0, 0);
+    const pt = iso(gx, 0, 3.5);
     ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(bx, by, bw, bh, 3);
-    } else {
-      ctx.rect(bx, by, bw, bh);
-    }
+    ctx.moveTo(pb.x,        pb.y);
+    ctx.lineTo(pb.x + TW/2, pb.y - TH/2);
+    ctx.lineTo(pt.x + TW/2, pt.y - TH/2);
+    ctx.lineTo(pt.x,        pt.y);
+    ctx.closePath();
+    ctx.fillStyle = '#1A0035';
     ctx.fill();
+    ctx.strokeStyle = '#0A0020';
+    ctx.lineWidth = 0.5;
     ctx.stroke();
-
-    ctx.fillStyle = isActive ? '#FFFFFF' : '#8844AA';
-    ctx.font = '9px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillText(tf, bx + bw / 2, by + 11);
-  });
-
-  // ── Chart area ──
-  var cTop = 65, cBot = 278;
-  var cH = cBot - cTop;
-  var cLeft = 10, cRight = chartW - 55;
-  var cW = cRight - cLeft;
-
-  // Price range
-  var hMax = -Infinity, lMin = Infinity;
-  klines.forEach(function(k) {
-    if (k.h > hMax) hMax = k.h;
-    if (k.l < lMin) lMin = k.l;
-  });
-  var priceRange = hMax - lMin;
-  if (priceRange < 1) priceRange = 1;
-  var pricePad = priceRange * 0.06;
-  hMax += pricePad;
-  lMin -= pricePad;
-  priceRange = hMax - lMin;
-
-  function pxY(p) {
-    return cBot - ((p - lMin) / priceRange) * cH;
   }
-  function pxX(i) {
-    return cLeft + (i / Math.max(n - 1, 1)) * cW;
-  }
-
-  // ── Grid ──
-  ctx.strokeStyle = '#2A0050';
-  ctx.lineWidth = 0.5;
-  var nGridH = 5;
-  for (var gi = 0; gi <= nGridH; gi++) {
-    var gp = lMin + (gi / nGridH) * priceRange;
-    var gridY = pxY(gp);
+  // Left wall: gx=0, gy=0..11
+  for (let gy = 0; gy <= 11; gy++) {
+    const pb = iso(0, gy, 0);
+    const pt = iso(0, gy, 3.5);
     ctx.beginPath();
-    ctx.moveTo(cLeft, gridY);
-    ctx.lineTo(cRight, gridY);
+    ctx.moveTo(pb.x,         pb.y);
+    ctx.lineTo(pb.x + TW/2,  pb.y + TH/2);
+    ctx.lineTo(pt.x + TW/2,  pt.y + TH/2);
+    ctx.lineTo(pt.x,         pt.y);
+    ctx.closePath();
+    ctx.fillStyle = '#170030';
+    ctx.fill();
+    ctx.strokeStyle = '#0A0020';
+    ctx.lineWidth = 0.5;
     ctx.stroke();
+  }
+  // Neon strip: base of back wall
+  for (let gx = 0; gx <= 17; gx++) {
+    const p1 = iso(gx,   0, 0);
+    const p2 = iso(gx+1, 0, 0);
+    ctx.beginPath();
+    ctx.moveTo(p1.x + TW/2, p1.y - TH/2);
+    ctx.lineTo(p2.x + TW/2, p2.y - TH/2);
+    ctx.strokeStyle = '#8800FF';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#8800FF';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  // Neon strip: base of left wall
+  for (let gy = 0; gy <= 10; gy++) {
+    const p1 = iso(0, gy,   0);
+    const p2 = iso(0, gy+1, 0);
+    ctx.beginPath();
+    ctx.moveTo(p1.x + TW/2, p1.y + TH/2);
+    ctx.lineTo(p2.x + TW/2, p2.y + TH/2);
+    ctx.strokeStyle = '#8800FF';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#8800FF';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  // Ceiling line suggestion
+  const cl = iso(0, 0, 3.5), cr = iso(18, 0, 3.5);
+  ctx.beginPath();
+  ctx.moveTo(cl.x, cl.y);
+  for (let gx = 0; gx <= 18; gx++) {
+    const p = iso(gx, 0, 3.5);
+    ctx.lineTo(p.x + TW/2, p.y - TH/2);
+  }
+  ctx.strokeStyle = '#3A0055';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
 
-    ctx.fillStyle = '#6644AA';
-    ctx.font = '7px Courier New';
+// ─────────────────────────────────────────────────────────────
+// DRAW PRICE SCREEN (back wall)
+// ─────────────────────────────────────────────────────────────
+function drawPriceScreen() {
+  const SC = {
+    bl: iso(5,  0, 0.3),
+    br: iso(17, 0, 0.3),
+    tl: iso(5,  0, 4.2),
+    tr: iso(17, 0, 4.2)
+  };
+
+  // Screen background
+  ctx.beginPath();
+  ctx.moveTo(SC.bl.x + TW/2, SC.bl.y - TH/2);
+  ctx.lineTo(SC.br.x + TW/2, SC.br.y - TH/2);
+  ctx.lineTo(SC.tr.x + TW/2, SC.tr.y - TH/2);
+  ctx.lineTo(SC.tl.x + TW/2, SC.tl.y - TH/2);
+  ctx.closePath();
+  ctx.fillStyle = '#030010';
+  ctx.fill();
+  ctx.strokeStyle = '#4400AA';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#6600FF';
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Screen frame inner glow
+  ctx.strokeStyle = '#1A0044';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // --- Build local 2D coords from isometric screen corners ---
+  // We will draw content in screen-local space using a transform.
+  // Screen spans from tl to tr (top) and bl to br (bottom)
+  // We approximate a flat projection by taking average points
+
+  const sx = (SC.tl.x + SC.tl.x + TW/2) / 2; // left X center
+  const ex = (SC.tr.x + SC.tr.x + TW/2) / 2;  // right X center
+  const ty = (SC.tl.y + SC.tr.y) / 2 - TH/2;  // top Y
+  const by = (SC.bl.y + SC.br.y) / 2 - TH/2;  // bottom Y
+
+  // Better approach: use the actual iso projection for 4 corners
+  const p0 = { x: SC.tl.x + TW/2, y: SC.tl.y - TH/2 };
+  const p1 = { x: SC.tr.x + TW/2, y: SC.tr.y - TH/2 };
+  const p2 = { x: SC.br.x + TW/2, y: SC.br.y - TH/2 };
+  const p3 = { x: SC.bl.x + TW/2, y: SC.bl.y - TH/2 };
+
+  const scrW = Math.abs(p1.x - p0.x);
+  const scrH = Math.abs(p3.y - p0.y);
+  const scrX = p0.x;
+  const scrY = p0.y;
+
+  // Use clipping rect for screen content
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(p0.x, p0.y);
+  ctx.lineTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.lineTo(p3.x, p3.y);
+  ctx.closePath();
+  ctx.clip();
+
+  // Screen scanlines effect
+  for (let y = scrY; y < scrY + scrH; y += 3) {
+    ctx.beginPath();
+    ctx.moveTo(p3.x + (p0.x - p3.x) * (y - scrY) / scrH, y);
+    ctx.lineTo(p2.x + (p1.x - p2.x) * (y - scrY) / scrH, y);
+    ctx.strokeStyle = 'rgba(80,0,160,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Content uses a simple flat projection (screen-local coords mapped to iso quad)
+  // For simplicity, we draw in a scaled ctx transform
+  // Approximate horizontal shear of the screen
+  const skewX = (p1.y - p0.y) / scrW;
+  ctx.transform(1, skewX, 0, 1, p0.x, p0.y);
+
+  const cw = scrW, ch = scrH;
+
+  // --- Header strip ---
+  ctx.fillStyle = '#0A0025';
+  ctx.fillRect(0, 0, cw, 52);
+
+  ctx.fillStyle = '#553399';
+  ctx.font = 'bold 9px "Courier New"';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('BTC/USDT · PREÇO AO VIVO', 8, 6);
+
+  // BTC Price
+  const price = btcTicker ? parseFloat(btcTicker.lastPrice) : null;
+  const change = btcTicker ? parseFloat(btcTicker.priceChangePercent) : null;
+  ctx.font = 'bold 26px "Courier New"';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'left';
+  ctx.fillText(price ? '$' + price.toLocaleString('en-US', {maximumFractionDigits:0}) : '$—', 8, 16);
+
+  if (change !== null) {
+    ctx.font = 'bold 10px "Courier New"';
+    ctx.fillStyle = change >= 0 ? '#00C878' : '#FF2D78';
+    ctx.fillText((change >= 0 ? '▲ +' : '▼ ') + change.toFixed(2) + '%', cw - 85, 22);
+  }
+
+  // 24h stats
+  if (btcTicker) {
+    const high = parseFloat(btcTicker.highPrice).toLocaleString('en-US', {maximumFractionDigits:0});
+    const low  = parseFloat(btcTicker.lowPrice).toLocaleString('en-US', {maximumFractionDigits:0});
+    const vol  = (parseFloat(btcTicker.volume) / 1000).toFixed(0) + 'K';
+    ctx.font = '7px "Courier New"';
+    ctx.fillStyle = '#443366';
     ctx.textAlign = 'left';
-    ctx.fillText('$' + gp.toFixed(0), cRight + 3, gridY + 3);
+    ctx.fillText(`H: $${high}  L: $${low}  VOL: ${vol}`, 8, 44);
   }
 
-  // Vertical time grid
-  var vStep = Math.max(1, Math.floor(n / 8));
-  for (var vi = 0; vi < n; vi += vStep) {
-    var vx = pxX(vi);
+  // Timeframe buttons
+  const TFS = ['1m','5m','15m','1h','4h','1d'];
+  const btnW = 28, btnH = 14, btnY = 54;
+  let btnX = 8;
+  TFS.forEach(tf => {
+    const active = tf === interval;
+    ctx.fillStyle = active ? '#6600BB' : '#0A0020';
+    ctx.strokeStyle = active ? '#AA44FF' : '#2A0044';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(vx, cTop);
-    ctx.lineTo(vx, cBot);
-    ctx.strokeStyle = '#1A0035';
+    ctx.roundRect(btnX, btnY, btnW, btnH, 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = active ? '#FFFFFF' : '#553366';
+    ctx.font = '6px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tf, btnX + btnW/2, btnY + btnH/2);
+    btnX += btnW + 3;
+  });
+
+  // CANDLESTICK CHART
+  const chartX = 4, chartY = 72, chartW = cw - 8, chartH = ch - 74;
+  ctx.fillStyle = '#030010';
+  ctx.fillRect(chartX, chartY, chartW, chartH);
+
+  // Grid
+  for (let i = 0; i <= 4; i++) {
+    const gy2 = chartY + (chartH * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(chartX, gy2);
+    ctx.lineTo(chartX + chartW, gy2);
+    ctx.strokeStyle = '#2A0050';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  for (let i = 0; i <= 8; i++) {
+    const gx2 = chartX + (chartW * i / 8);
+    ctx.beginPath();
+    ctx.moveTo(gx2, chartY);
+    ctx.lineTo(gx2, chartY + chartH);
+    ctx.strokeStyle = '#2A0050';
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }
 
-  // Bottom axis line
-  ctx.beginPath();
-  ctx.moveTo(cLeft, cBot);
-  ctx.lineTo(cRight, cBot);
-  ctx.strokeStyle = '#3A0060';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  if (btcKlines.length > 0) {
+    const n = btcKlines.length;
+    let minP = Infinity, maxP = -Infinity;
+    btcKlines.forEach(k => { minP = Math.min(minP, k.l); maxP = Math.max(maxP, k.h); });
+    const range = maxP - minP || 1;
+    const toY = p => chartY + chartH - ((p - minP) / range) * chartH;
+    const cw2 = chartW / n;
+    const gapFrac = 0.25;
+    const candleW = Math.max(1, cw2 * (1 - gapFrac));
 
-  // ── Candlesticks ──
-  var candleW = Math.max(1.5, (cW / n) * 0.75);
-  var halfC = candleW / 2;
-
-  klines.forEach(function(k, i) {
-    var x = pxX(i);
-    var isBull = k.c >= k.o;
-    var bodyColor = isBull ? '#00C878' : '#FF2D78';
-
-    var yH = pxY(k.h);
-    var yL = pxY(k.l);
-    var yO = pxY(k.o);
-    var yC = pxY(k.c);
-
-    var bodyTop = Math.min(yO, yC);
-    var bodyBot = Math.max(yO, yC);
-    var bodyH = Math.max(1, bodyBot - bodyTop);
-
-    // Wick
-    ctx.strokeStyle = bodyColor;
-    ctx.lineWidth = Math.max(0.5, candleW * 0.12);
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(x, yH);
-    ctx.lineTo(x, yL);
-    ctx.stroke();
-
-    // Body
-    ctx.fillStyle = bodyColor;
-    ctx.globalAlpha = isBull ? 0.9 : 0.8;
-    ctx.fillRect(x - halfC, bodyTop, candleW, bodyH);
-    ctx.globalAlpha = 1;
-  });
-
-  // ── Edge vignette ──
-  var vig = ctx.createLinearGradient(0, 0, chartW, 0);
-  vig.addColorStop(0, '#9B30FF22');
-  vig.addColorStop(0.1, 'transparent');
-  vig.addColorStop(0.9, 'transparent');
-  vig.addColorStop(1, '#9B30FF22');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, chartW, chartH);
-
-  // ── Scanlines ──
-  ctx.globalAlpha = 0.05;
-  ctx.fillStyle = '#000';
-  for (var sy = 0; sy < chartH; sy += 3) {
-    ctx.fillRect(0, sy, chartW, 1.5);
-  }
-  ctx.globalAlpha = 1;
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: LARGE BTC SCREEN
-// ─────────────────────────────────────────────────────────────────
-function drawScreen() {
-  var SC = computeScreenCorners();
-
-  // ── Bezel (slightly larger) ──
-  var pad = 7;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(SC.bl.x - pad * 0.6, SC.bl.y + pad * 0.25);
-  ctx.lineTo(SC.br.x + pad * 0.6, SC.br.y + pad * 0.25);
-  ctx.lineTo(SC.tr.x + pad * 0.6, SC.tr.y - pad * 0.25);
-  ctx.lineTo(SC.tl.x - pad * 0.6, SC.tl.y - pad * 0.25);
-  ctx.closePath();
-  ctx.fillStyle = '#1A0035';
-  ctx.fill();
-  ctx.fillStyle = '#0A001A';
-  ctx.fill();
-  ctx.restore();
-
-  // ── Neon border ──
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(SC.bl.x, SC.bl.y);
-  ctx.lineTo(SC.br.x, SC.br.y);
-  ctx.lineTo(SC.tr.x, SC.tr.y);
-  ctx.lineTo(SC.tl.x, SC.tl.y);
-  ctx.closePath();
-  ctx.strokeStyle = '#9B30FF';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#9B30FF';
-  ctx.shadowBlur = 16;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.restore();
-
-  // ── Screen clipped content ──
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(SC.bl.x, SC.bl.y);
-  ctx.lineTo(SC.br.x, SC.br.y);
-  ctx.lineTo(SC.tr.x, SC.tr.y);
-  ctx.lineTo(SC.tl.x, SC.tl.y);
-  ctx.closePath();
-  ctx.fillStyle = '#020008';
-  ctx.fill();
-  ctx.clip();
-
-  // Compute transform: chart [0..chartW] x [0..chartH] -> screen parallelogram
-  var a  = (SC.br.x - SC.bl.x) / chartW;
-  var b  = (SC.br.y - SC.bl.y) / chartW;
-  var c2 = 0;
-  var d  = (SC.tl.y - SC.bl.y) / chartH;
-  var e  = SC.bl.x;
-  var f  = SC.bl.y;
-
-  // Apply canvas-level scale+pan on top of the chart transform
-  ctx.setTransform(
-    a * scale,
-    b * scale,
-    c2,
-    d * scale,
-    e * scale + panX,
-    f * scale + panY
-  );
-
-  if (btcApiOk && btcKlines.length > 0) {
-    drawChartContent();
-  } else {
-    // No-data state
-    ctx.fillStyle = '#020008';
-    ctx.fillRect(0, 0, chartW, chartH);
-
-    ctx.fillStyle = '#FF2D78';
-    ctx.font = 'bold 16px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillText('⚠ DONNÉES INDISPONIBLES', chartW / 2, chartH / 2 - 10);
-
-    ctx.font = '10px Courier New';
-    ctx.fillStyle = '#550033';
-    ctx.fillText('Connexion Binance impossible', chartW / 2, chartH / 2 + 12);
-    ctx.fillText('Vérifiez votre connexion internet', chartW / 2, chartH / 2 + 26);
-  }
-
-  ctx.restore();
-
-  // ── Recompute TF zones in un-scaled canvas coords ──
-  recomputeTFZones(SC, a, b, d, e, f);
-}
-
-function recomputeTFZones(SC, a, b, d, e, f) {
-  tfZones = [];
-  TF_OPTIONS.forEach(function(tf, i) {
-    var bx1 = 10 + i * 55;
-    var bx2 = bx1 + 48;
-    var by1 = 38;
-    var by2 = 54;
-
-    // Transform all 4 corners from chart-local to canvas coords (without scale/pan, since toCanvasCoords undoes those)
-    function ct(cx, cy) {
-      return { x: a * cx + e, y: b * cx + d * cy + f };
-    }
-    var corners = [ct(bx1, by1), ct(bx2, by1), ct(bx2, by2), ct(bx1, by2)];
-    var xs = corners.map(function(p) { return p.x; });
-    var ys = corners.map(function(p) { return p.y; });
-
-    tfZones.push({
-      label: tf, interval: tf,
-      x1: Math.min.apply(null, xs),
-      y1: Math.min.apply(null, ys),
-      x2: Math.max.apply(null, xs),
-      y2: Math.max.apply(null, ys)
+    btcKlines.forEach((k, i) => {
+      const x = chartX + i * cw2 + cw2 * gapFrac / 2;
+      const bull = k.c >= k.o;
+      const col  = bull ? '#00C878' : '#FF2D78';
+      // Wick
+      ctx.beginPath();
+      ctx.moveTo(x + candleW/2, toY(k.h));
+      ctx.lineTo(x + candleW/2, toY(k.l));
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // Body
+      const oy = toY(Math.max(k.o, k.c));
+      const cy2 = Math.max(1, Math.abs(toY(k.o) - toY(k.c)));
+      ctx.fillStyle = bull ? '#00C878' : '#FF2D78';
+      ctx.fillRect(x, oy, candleW, cy2);
     });
-  });
+
+    // Price line
+    const lastP = btcKlines[btcKlines.length - 1].c;
+    const lineY = toY(lastP);
+    ctx.beginPath();
+    ctx.setLineDash([3, 3]);
+    ctx.moveTo(chartX, lineY);
+    ctx.lineTo(chartX + chartW, lineY);
+    ctx.strokeStyle = 'rgba(170,100,255,0.5)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Price label on right
+    ctx.fillStyle = '#AA44FF';
+    ctx.font = '7px "Courier New"';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$' + lastP.toLocaleString('en-US',{maximumFractionDigits:0}), chartX + chartW - 2, lineY);
+  } else {
+    ctx.fillStyle = '#2A0044';
+    ctx.font = '9px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(btcApiOk ? 'Chargement...' : 'API indisponible', chartX + chartW/2, chartY + chartH/2);
+  }
+
+  ctx.restore();
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DRAW: TABLE
-// ─────────────────────────────────────────────────────────────────
-function drawTable(gx, gy, agent) {
-  var dW = 1.8, dD = 1.2, dH = 0.6;
-  var monW = 0.7, monH = 0.65;
+// ─────────────────────────────────────────────────────────────
+// DRAW COIN DESK
+// ─────────────────────────────────────────────────────────────
+function drawCoinDesk(cd) {
+  const p = iso(cd.gx, cd.gy, 0);
+  const depth = (cd.gx + cd.gy) / 28;
+  ctx.globalAlpha = 0.8 + depth * 0.2;
+
+  // Desk body (isometric box 1.6 wide, 1.0 deep, 0.45 tall)
+  const dw = TW * 0.8, dd = TH * 0.5, dh = WH * 0.45;
+  const dp = { x: p.x + TW * 0.1, y: p.y + TH * 0.05 };
 
   // Top face
-  var tfl = iso(gx,      gy,      dH);
-  var tfr = iso(gx + dW, gy,      dH);
-  var tbr = iso(gx + dW, gy + dD, dH);
-  var tbl = iso(gx,      gy + dD, dH);
-
   ctx.beginPath();
-  ctx.moveTo(tfl.x, tfl.y);
-  ctx.lineTo(tfr.x, tfr.y);
-  ctx.lineTo(tbr.x, tbr.y);
-  ctx.lineTo(tbl.x, tbl.y);
+  ctx.moveTo(dp.x,          dp.y);
+  ctx.lineTo(dp.x + dw,     dp.y - dw * TH / TW);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5);
   ctx.closePath();
-
-  var topGrad = ctx.createLinearGradient(tfl.x, tfl.y, tbr.x, tbr.y);
-  topGrad.addColorStop(0, '#3A0A6A');
-  topGrad.addColorStop(0.5, '#2D0A5A');
-  topGrad.addColorStop(1, '#200840');
+  const topGrad = ctx.createLinearGradient(dp.x, dp.y, dp.x + dw, dp.y - dh);
+  topGrad.addColorStop(0, '#1E0040');
+  topGrad.addColorStop(1, '#2A005A');
   ctx.fillStyle = topGrad;
   ctx.fill();
-  ctx.strokeStyle = '#7B2FBE';
+  ctx.strokeStyle = hexAlpha(cd.color, 0.5);
   ctx.lineWidth = 0.8;
-  ctx.shadowColor = '#7B2FBE';
+  ctx.shadowColor = cd.color;
   ctx.shadowBlur = 4;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
   // Left face
   ctx.beginPath();
-  ctx.moveTo(tfl.x, tfl.y);
-  ctx.lineTo(tbl.x, tbl.y);
-  ctx.lineTo(iso(gx, gy + dD, 0).x, iso(gx, gy + dD, 0).y);
-  ctx.lineTo(iso(gx, gy, 0).x, iso(gx, gy, 0).y);
+  ctx.moveTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x,          dp.y);
+  ctx.lineTo(dp.x,          dp.y + dh);
+  ctx.lineTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5 + dh);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(26,0,56,0.85)';
+  ctx.fillStyle = '#0F001F';
   ctx.fill();
 
   // Right face
   ctx.beginPath();
-  ctx.moveTo(tfr.x, tfr.y);
-  ctx.lineTo(tbr.x, tbr.y);
-  ctx.lineTo(iso(gx + dW, gy + dD, 0).x, iso(gx + dW, gy + dD, 0).y);
-  ctx.lineTo(iso(gx + dW, gy, 0).x, iso(gx + dW, gy, 0).y);
+  ctx.moveTo(dp.x + dw,     dp.y - dw * TH / TW);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5 + dh);
+  ctx.lineTo(dp.x + dw,     dp.y - dw * TH / TW + dh);
   ctx.closePath();
-  ctx.fillStyle = '#220045';
+  ctx.fillStyle = '#150030';
   ctx.fill();
 
-  // Monitor (parallelogram on back edge of desk, facing viewer)
-  var mx0 = gx + (dW - monW) / 2;
-  var mx1 = mx0 + monW;
-  var my = gy + 0.15;
-  var mzBot = dH + 0.05;
-  var mzTop = dH + monH;
-
-  var mbl = iso(mx0, my, mzBot);
-  var mbr = iso(mx1, my, mzBot);
-  var mtr = iso(mx1, my, mzTop);
-  var mtl = iso(mx0, my, mzTop);
-
-  ctx.beginPath();
-  ctx.moveTo(mbl.x, mbl.y);
-  ctx.lineTo(mbr.x, mbr.y);
-  ctx.lineTo(mtr.x, mtr.y);
-  ctx.lineTo(mtl.x, mtl.y);
-  ctx.closePath();
-
-  if (agent) {
-    ctx.shadowColor = agent.color;
-    ctx.shadowBlur = 10;
-    var monGrad = ctx.createLinearGradient(mbl.x, mbl.y, mtr.x, mtr.y);
-    monGrad.addColorStop(0, '#08001A');
-    monGrad.addColorStop(0.5, agent.color + '2A');
-    monGrad.addColorStop(1, '#08001A');
-    ctx.fillStyle = monGrad;
-  } else {
-    ctx.fillStyle = '#050010';
-    ctx.shadowBlur = 0;
-  }
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = agent ? agent.color : '#1A0028';
+  // Small monitor on desk
+  const mp = iso(cd.gx + 0.4, cd.gy + 0.35, 0.5);
+  const mw = 14, mh = 10;
+  ctx.fillStyle = '#0A0020';
+  ctx.strokeStyle = hexAlpha(cd.color, 0.7);
   ctx.lineWidth = 0.8;
-  ctx.stroke();
+  ctx.shadowColor = cd.color;
+  ctx.shadowBlur = 5;
+  ctx.beginPath();
+  ctx.rect(mp.x - mw/2, mp.y - mh/2, mw, mh);
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Monitor screen glow
+  ctx.fillStyle = hexAlpha(cd.color, 0.25);
+  ctx.fillRect(mp.x - mw/2 + 1, mp.y - mh/2 + 1, mw - 2, mh - 2);
 
-  // Store monitor click zone (in un-scaled coords)
-  if (agent) {
-    var pts = [mbl, mbr, mtr, mtl];
-    var xs = pts.map(function(p) { return p.x; });
-    var ys = pts.map(function(p) { return p.y; });
-    var found = false;
-    for (var i = 0; i < monitorZones.length; i++) {
-      if (monitorZones[i].agent.id === agent.id) {
-        monitorZones[i] = { x1: Math.min.apply(null,xs), y1: Math.min.apply(null,ys), x2: Math.max.apply(null,xs), y2: Math.max.apply(null,ys), agent: agent };
-        found = true; break;
-      }
-    }
-    if (!found) {
-      monitorZones.push({ x1: Math.min.apply(null,xs), y1: Math.min.apply(null,ys), x2: Math.max.apply(null,xs), y2: Math.max.apply(null,ys), agent: agent });
-    }
+  // COIN LABEL floating above desk
+  const lp = iso(cd.gx + 0.9, cd.gy + 0.6, 1.8);
+  ctx.globalAlpha = 1;
+  drawPill(lp.x, lp.y, cd.sym, 'rgba(0,0,0,0.82)', '#FFFFFF', cd.color, 9);
+
+  // Small price change below label
+  const cp = coinPriceChanges[cd.sym];
+  if (cp) {
+    const arrow = cp.dir >= 0 ? '▲' : '▼';
+    const col   = cp.dir >= 0 ? '#00C878' : '#FF2D78';
+    ctx.font = 'bold 7px "Courier New"';
+    ctx.fillStyle = col;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(arrow + ' ' + Math.abs(cp.pct) + '%', lp.x, lp.y + 8);
   }
 
-  // Chair
-  var cxPos = gx + dW / 2 - 0.25;
-  var chBase = iso(cxPos, gy + dD + 0.35, 0.1);
-  ctx.fillStyle = '#150028';
-  ctx.strokeStyle = '#3A0060';
-  ctx.lineWidth = 0.5;
+  // CHARACTER at desk
+  drawSmallCharacter(cd.gx + 0.9, cd.gy + 0.9, 0.35, cd.color);
+
+  ctx.globalAlpha = 1;
+}
+
+// ─────────────────────────────────────────────────────────────
+// DRAW SMALL CHARACTER (coin desk worker)
+// ─────────────────────────────────────────────────────────────
+function drawSmallCharacter(gx, gy, gz, color) {
+  const p = iso(gx, gy, gz);
+  // Head
   ctx.beginPath();
-  ctx.ellipse(chBase.x, chBase.y, TW * 0.22, TH * 0.22, 0, 0, Math.PI * 2);
+  ctx.ellipse(p.x, p.y - 8, 4, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#F0C88A';
   ctx.fill();
+  // Body
+  ctx.fillStyle = hexAlpha(color, 0.9);
+  ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
+  // Chair back suggestion
+  ctx.strokeStyle = hexAlpha(color, 0.4);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(p.x - 5, p.y - 4);
+  ctx.lineTo(p.x - 5, p.y - 11);
+  ctx.moveTo(p.x + 5, p.y - 4);
+  ctx.lineTo(p.x + 5, p.y - 11);
   ctx.stroke();
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DRAW: HUMAN FIGURE
-// ─────────────────────────────────────────────────────────────────
-function drawHuman(sx, sy, agent, state, walkPhase) {
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+// ─────────────────────────────────────────────────────────────
+// DRAW MAIN AGENT
+// ─────────────────────────────────────────────────────────────
+function drawMainAgent(agent) {
+  const p = iso(agent.gx, agent.gy, 0);
+  const depth = (agent.gx + agent.gy) / 28;
+  ctx.globalAlpha = 0.9 + depth * 0.1;
+
+  // Larger desk: 2.0 wide, 1.2 deep, 0.55 tall
+  const dw = TW * 1.0, dd = TH * 0.6, dh = WH * 0.55;
+  const dp = { x: p.x + TW * 0.0, y: p.y };
+
+  // Top face with agent color tint
   ctx.beginPath();
-  ctx.ellipse(sx, sy + 18, 7, 2.5, 0, 0, Math.PI * 2);
+  ctx.moveTo(dp.x,          dp.y);
+  ctx.lineTo(dp.x + dw,     dp.y - dw * TH / TW);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5);
+  ctx.closePath();
+  const aTopGrad = ctx.createLinearGradient(dp.x, dp.y, dp.x + dw, dp.y - dh);
+  aTopGrad.addColorStop(0, '#280055');
+  aTopGrad.addColorStop(1, '#380075');
+  ctx.fillStyle = aTopGrad;
   ctx.fill();
-
-  // Legs
-  var legSwing = (state === 'to_break' || state === 'returning') ? Math.sin(walkPhase) * 5 : 0;
-  ctx.fillStyle = agent.pants;
-  ctx.fillRect(sx - 5, sy + 7, 4, 9);
-  ctx.fillRect(sx + 1, sy + 7 + legSwing, 4, 9);
-
-  // Torso
-  if (state === 'working') {
-    ctx.shadowColor = agent.color;
-    ctx.shadowBlur = 8;
-  }
-  ctx.fillStyle = agent.color;
-  ctx.fillRect(sx - 6, sy - 3, 12, 10);
+  ctx.strokeStyle = agent.color;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = agent.color;
+  ctx.shadowBlur = 10;
+  ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // Arms
-  ctx.fillStyle = agent.skin;
-  if (state === 'working') {
-    ctx.fillRect(sx - 9, sy + 1, 4, 6);
-    ctx.fillRect(sx + 5, sy + 1, 4, 6);
-  } else {
-    ctx.fillRect(sx - 8, sy, 3, 7);
-    ctx.fillRect(sx + 5, sy, 3, 7);
+  // Left face
+  ctx.beginPath();
+  ctx.moveTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x,          dp.y);
+  ctx.lineTo(dp.x,          dp.y + dh);
+  ctx.lineTo(dp.x - dd,     dp.y - dd * TW / TH * 0.5 + dh);
+  ctx.closePath();
+  ctx.fillStyle = '#15002E';
+  ctx.fill();
+
+  // Right face
+  ctx.beginPath();
+  ctx.moveTo(dp.x + dw,     dp.y - dw * TH / TW);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5);
+  ctx.lineTo(dp.x + dw - dd, dp.y - dw * TH / TW - dd * TW / TH * 0.5 + dh);
+  ctx.lineTo(dp.x + dw,     dp.y - dw * TH / TW + dh);
+  ctx.closePath();
+  ctx.fillStyle = '#1E0040';
+  ctx.fill();
+
+  // Monitor (larger)
+  const mp = iso(agent.gx + 0.5, agent.gy + 0.4, 0.6);
+  const mw = 24, mh = 16;
+  ctx.fillStyle = '#080018';
+  ctx.strokeStyle = agent.color;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = agent.color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.rect(mp.x - mw/2, mp.y - mh/2, mw, mh);
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Screen glow
+  ctx.fillStyle = hexAlpha(agent.color, 0.2);
+  ctx.fillRect(mp.x - mw/2 + 1, mp.y - mh/2 + 1, mw - 2, mh - 2);
+  // Screen lines (data)
+  for (let li = 0; li < 3; li++) {
+    ctx.fillStyle = hexAlpha(agent.color, 0.5);
+    ctx.fillRect(mp.x - mw/2 + 2, mp.y - mh/2 + 3 + li * 4, Math.random() * (mw - 6) + 3, 1.5);
   }
 
-  // Neck
-  ctx.fillStyle = agent.skin;
-  ctx.fillRect(sx - 2, sy - 8, 5, 6);
+  // Register click target
+  clickTargets.push({ x: mp.x - mw/2 - 4, y: mp.y - mh/2 - 4, w: mw + 8, h: mh + 8, agent });
+
+  // AGENT FIGURE (larger, ~12px head)
+  const fp = iso(agent.gx + 1.0, agent.gy + 1.0, 0.5);
+  // Neon dot above head (pulsing)
+  const pulse = 0.5 + 0.5 * Math.sin(animPhase * 0.08 + agent.gx);
+  ctx.beginPath();
+  ctx.arc(fp.x, fp.y - 26, 3 + pulse, 0, Math.PI * 2);
+  ctx.fillStyle = agent.color;
+  ctx.shadowColor = agent.color;
+  ctx.shadowBlur = 8 + pulse * 4;
+  ctx.fill();
+  ctx.shadowBlur = 0;
 
   // Head
   ctx.beginPath();
-  ctx.ellipse(sx, sy - 12, 7, 6, 0, 0, Math.PI * 2);
-  ctx.fillStyle = agent.skin;
+  ctx.ellipse(fp.x, fp.y - 17, 6, 6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#F0C88A';
   ctx.fill();
-
-  // Hair
-  ctx.beginPath();
-  ctx.ellipse(sx, sy - 14, 7, 4, 0, Math.PI, 0);
-  ctx.fillStyle = '#1A0A08';
-  ctx.fill();
-
-  // Eyes
-  ctx.fillStyle = '#111';
-  ctx.fillRect(sx - 4, sy - 13, 2, 2);
-  ctx.fillRect(sx + 2, sy - 13, 2, 2);
-
-  // Pulsing neon dot above head
-  var pulse = 0.6 + 0.4 * Math.sin(Date.now() / 500 + agent.gx);
-  ctx.shadowColor = agent.color;
-  ctx.shadowBlur = 8 * pulse;
-  ctx.fillStyle = agent.color;
-  ctx.beginPath();
-  ctx.arc(sx, sy - 24, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Name tag pill
-  ctx.font = '9px Courier New';
-  ctx.textAlign = 'center';
-  var tw = ctx.measureText(agent.name).width + 8;
-  var ty = sy - 34;
-  ctx.fillStyle = 'rgba(0,0,10,0.8)';
-  ctx.fillRect(sx - tw / 2, ty - 9, tw, 12);
   ctx.strokeStyle = agent.color;
-  ctx.lineWidth = 0.5;
-  ctx.strokeRect(sx - tw / 2, ty - 9, tw, 12);
-  ctx.fillStyle = '#fff';
-  ctx.fillText(agent.name, sx, ty);
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: PLANT
-// ─────────────────────────────────────────────────────────────────
-function drawPlant(gx, gy) {
-  var base = iso(gx + 0.5, gy + 0.5, 0);
-  var t = Date.now() / 2200;
-  var sway = Math.sin(t + gx * 0.7) * 2.5;
-
-  // Pot
-  ctx.fillStyle = '#3A1A08';
-  ctx.strokeStyle = '#5A2A10';
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(base.x - 10, base.y - 2);
-  ctx.lineTo(base.x + 10, base.y - 2);
-  ctx.lineTo(base.x + 8, base.y + 6);
-  ctx.lineTo(base.x - 8, base.y + 6);
-  ctx.closePath();
-  ctx.fill();
+  ctx.lineWidth = 1;
   ctx.stroke();
-
-  // Soil
-  ctx.fillStyle = '#1A0A04';
-  ctx.beginPath();
-  ctx.ellipse(base.x, base.y - 2, 10, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Foliage layers
-  var greens = ['#0A2A0A', '#0F3A0F', '#164416', '#1B4A10', '#0D3506'];
-  ctx.shadowColor = '#00AA33';
-  greens.forEach(function(g, i) {
-    ctx.fillStyle = g;
-    ctx.shadowBlur = i === 2 ? 4 : 1;
-    ctx.beginPath();
-    ctx.ellipse(
-      base.x + sway * (i * 0.25),
-      base.y - 16 - i * 6,
-      13 - i * 1.2,
-      11 - i * 1.0,
-      0, 0, Math.PI * 2
-    );
-    ctx.fill();
-  });
-  ctx.shadowBlur = 0;
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: SERVER RACK
-// ─────────────────────────────────────────────────────────────────
-function drawServer(gx, gy) {
-  var w = 1.2, d = 0.8, h = 3.5;
-  var fade = 1.0 - (gy / 12) * 0.15;
-  ctx.globalAlpha = fade;
-
-  // Front face (visible from isometric view)
-  var tl = iso(gx,     gy, h);
-  var tr = iso(gx + w, gy, h);
-  var br = iso(gx + w, gy, 0);
-  var bl = iso(gx,     gy, 0);
-
-  ctx.beginPath();
-  ctx.moveTo(bl.x, bl.y);
-  ctx.lineTo(br.x, br.y);
-  ctx.lineTo(tr.x, tr.y);
-  ctx.lineTo(tl.x, tl.y);
-  ctx.closePath();
-  ctx.fillStyle = '#0A0A14';
-  ctx.fill();
-  ctx.strokeStyle = '#1A1A30';
-  ctx.lineWidth = 0.8;
-  ctx.stroke();
-
-  // Side face
-  var rbl = iso(gx + w, gy,     0);
-  var rbr = iso(gx + w, gy + d, 0);
-  var rtr = iso(gx + w, gy + d, h);
-  var rtl = iso(gx + w, gy,     h);
-
-  ctx.beginPath();
-  ctx.moveTo(rbl.x, rbl.y);
-  ctx.lineTo(rbr.x, rbr.y);
-  ctx.lineTo(rtr.x, rtr.y);
-  ctx.lineTo(rtl.x, rtl.y);
-  ctx.closePath();
-  ctx.fillStyle = '#060610';
-  ctx.fill();
-
-  // Top face
-  var ctl = iso(gx,     gy,     h);
-  var ctr = iso(gx + w, gy,     h);
-  var cbr = iso(gx + w, gy + d, h);
-  var cbl = iso(gx,     gy + d, h);
-
-  ctx.beginPath();
-  ctx.moveTo(ctl.x, ctl.y);
-  ctx.lineTo(ctr.x, ctr.y);
-  ctx.lineTo(cbr.x, cbr.y);
-  ctx.lineTo(cbl.x, cbl.y);
-  ctx.closePath();
-  ctx.fillStyle = '#0D0D20';
-  ctx.fill();
-
-  // Rack unit lines
-  for (var u = 1; u <= 5; u++) {
-    var lu = iso(gx,     gy, u * h / 6);
-    var ru = iso(gx + w, gy, u * h / 6);
-    ctx.beginPath();
-    ctx.moveTo(lu.x, lu.y);
-    ctx.lineTo(ru.x, ru.y);
-    ctx.strokeStyle = '#1A1A2A';
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-  }
-
-  // LEDs
-  ledStates.forEach(function(on, idx) {
-    var ledFrac = (idx + 0.5) / ledStates.length;
-    var lPos = iso(gx + 0.12, gy, h * ledFrac);
-    if (on) {
-      ctx.fillStyle = ledColors[idx];
-      ctx.shadowColor = ledColors[idx];
-      ctx.shadowBlur = 6;
-    } else {
-      ctx.fillStyle = '#111122';
-      ctx.shadowBlur = 0;
-    }
-    ctx.beginPath();
-    ctx.arc(lPos.x, lPos.y, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  });
-
-  ctx.globalAlpha = 1;
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: COFFEE STATION
-// ─────────────────────────────────────────────────────────────────
-function drawCoffee(gx, gy) {
-  var fade = 1.0 - (gy / 12) * 0.15;
-  ctx.globalAlpha = fade;
-
-  var base = iso(gx, gy, 0);
-  var top  = iso(gx, gy, 1.0);
-
-  // Machine body
-  ctx.fillStyle = '#1A1A2A';
-  ctx.fillRect(base.x - 16, top.y, 32, base.y - top.y);
-  ctx.strokeStyle = '#3A3A5A';
-  ctx.lineWidth = 0.8;
-  ctx.strokeRect(base.x - 16, top.y, 32, base.y - top.y);
-
-  // Screen panel
-  ctx.fillStyle = '#001122';
-  ctx.fillRect(base.x - 10, top.y + 4, 20, 11);
-  ctx.fillStyle = '#00AAFF';
-  ctx.font = '6px Courier New';
-  ctx.textAlign = 'center';
-  ctx.fillText('CAFÉ', base.x, top.y + 13);
-
-  // Coffee dispenser nozzle
-  ctx.fillStyle = '#333344';
-  ctx.fillRect(base.x - 3, base.y - 12, 6, 8);
-
-  // Steam particles
-  steamParticles.forEach(function(p) {
-    ctx.globalAlpha = fade * p.life * 0.45;
-    ctx.fillStyle = '#AAAACC';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  ctx.globalAlpha = 1;
-}
-
-// ─────────────────────────────────────────────────────────────────
-// DRAW: WATER DISPENSER
-// ─────────────────────────────────────────────────────────────────
-function drawWater(gx, gy) {
-  var fade = 1.0 - (gy / 12) * 0.15;
-  ctx.globalAlpha = fade;
-
-  var base = iso(gx, gy, 0);
-  var top  = iso(gx, gy, 1.5);
-  var mid  = { x: base.x, y: (base.y + top.y) / 2 };
-  var halfH = (base.y - top.y) / 2;
 
   // Body
-  ctx.fillStyle = '#082030';
+  ctx.fillStyle = hexAlpha(agent.color, 0.9);
+  ctx.fillRect(fp.x - 6, fp.y - 11, 12, 12);
+  // Arms
+  ctx.strokeStyle = hexAlpha(agent.color, 0.7);
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.ellipse(mid.x, mid.y, 14, halfH, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.shadowColor = '#0088FF';
-  ctx.shadowBlur = 8;
-  ctx.strokeStyle = '#0066BB';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.ellipse(mid.x, mid.y, 14, halfH, 0, 0, Math.PI * 2);
+  ctx.moveTo(fp.x - 6, fp.y - 9);
+  ctx.lineTo(fp.x - 12, fp.y - 5);
+  ctx.moveTo(fp.x + 6, fp.y - 9);
+  ctx.lineTo(fp.x + 12, fp.y - 5);
   ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Water bottle top
-  ctx.fillStyle = '#003366AA';
-  ctx.strokeStyle = '#0055AA';
-  ctx.lineWidth = 0.8;
+  // Legs
   ctx.beginPath();
-  ctx.ellipse(base.x, top.y + 6, 9, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(fp.x - 3, fp.y + 1);
+  ctx.lineTo(fp.x - 3, fp.y + 8);
+  ctx.moveTo(fp.x + 3, fp.y + 1);
+  ctx.lineTo(fp.x + 3, fp.y + 8);
   ctx.stroke();
+
+  // Name tag
+  const np = iso(agent.gx + 1.0, agent.gy + 1.0, 1.9);
+  ctx.globalAlpha = 1;
+  drawPill(np.x, np.y, agent.name, hexAlpha(agent.color, 0.15), agent.color, agent.color, 8);
+  // Role below name
+  ctx.font = '6px "Courier New"';
+  ctx.fillStyle = hexAlpha(agent.color, 0.6);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(agent.role, np.x, np.y + 8);
 
   ctx.globalAlpha = 1;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// TABLE LAYOUT
-// ─────────────────────────────────────────────────────────────────
-var TABLE_ROWS = [
-  { gy: 2,  gxs: [2, 5, 8, 11] },
-  { gy: 4,  gxs: [2, 5, 8, 11] },
-  { gy: 6,  gxs: [2, 5, 8, 11] },
-  { gy: 8,  gxs: [2, 5, 8, 11] }
-];
+// ─────────────────────────────────────────────────────────────
+// DRAW BUBBLE
+// ─────────────────────────────────────────────────────────────
+function drawBubble(b) {
+  const p = iso(b.gx + 0.9, b.gy + 0.6, 2.4);
+  const alpha = Math.min(1, b.life / 20);
+  ctx.globalAlpha = alpha;
 
-function findAgentAt(gx, gy) {
-  return AGENTS.find(function(a) { return a.gx === gx && a.gy === gy; }) || null;
+  const bw = 34, bh = 14, br = 3;
+  const bx = p.x - bw / 2, by = p.y - bh - 4;
+
+  // White bubble
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = b.color;
+  ctx.lineWidth = 1;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, br);
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Triangle pointer
+  ctx.beginPath();
+  ctx.moveTo(p.x - 4, by + bh);
+  ctx.lineTo(p.x + 4, by + bh);
+  ctx.lineTo(p.x,     by + bh + 5);
+  ctx.closePath();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+
+  // Text
+  ctx.fillStyle = '#1A0030';
+  ctx.font = 'bold 7px "Courier New"';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(b.text, p.x, by + bh / 2);
+
+  ctx.globalAlpha = 1;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// PAINTER'S ALGORITHM + DRAW
-// ─────────────────────────────────────────────────────────────────
-function buildAndDraw() {
-  var items = [];
-
-  // Tables
-  TABLE_ROWS.forEach(function(row) {
-    row.gxs.forEach(function(gx) {
-      items.push({ type: 'table', gx: gx, gy: row.gy, depth: gx + row.gy });
-    });
-  });
-
-  // Agents
-  AGENTS.forEach(function(agent) {
-    var st = agentStates[agent.id];
-    items.push({
-      type: 'agent', agent: agent,
-      wx: st.wx, wy: st.wy,
-      depth: st.wx + st.wy + 0.5
-    });
-  });
-
-  // Plants
-  [{gx:1,gy:1},{gx:15,gy:1},{gx:1,gy:10},{gx:15,gy:10}].forEach(function(p) {
-    items.push({ type: 'plant', gx: p.gx, gy: p.gy, depth: p.gx + p.gy });
-  });
-
-  // Server
-  items.push({ type: 'server', gx: 15, gy: 5, depth: 20.1 });
-
-  // Coffee
-  items.push({ type: 'coffee', gx: 14, gy: 9, depth: 23.1 });
-
-  // Water
-  items.push({ type: 'water', gx: 1, gy: 9, depth: 10.1 });
-
-  items.sort(function(a, b) { return a.depth - b.depth; });
-
-  monitorZones = [];
-
-  items.forEach(function(item) {
-    if (item.type === 'table') {
-      drawTable(item.gx, item.gy, findAgentAt(item.gx, item.gy));
-    } else if (item.type === 'agent') {
-      var pos = iso(item.wx, item.wy, 0);
-      var st = agentStates[item.agent.id];
-      drawHuman(pos.x, pos.y - 6, item.agent, st.state, agentWalkPhase[item.agent.id]);
-    } else if (item.type === 'plant') {
-      drawPlant(item.gx, item.gy);
-    } else if (item.type === 'server') {
-      drawServer(item.gx, item.gy);
-    } else if (item.type === 'coffee') {
-      drawCoffee(item.gx, item.gy);
-    } else if (item.type === 'water') {
-      drawWater(item.gx, item.gy);
-    }
+// ─────────────────────────────────────────────────────────────
+// DRAW DECORATIVE ELEMENTS
+// ─────────────────────────────────────────────────────────────
+function drawPlant(gx, gy) {
+  const p = iso(gx, gy, 0);
+  // Pot
+  ctx.fillStyle = '#1A0030';
+  ctx.strokeStyle = '#3A0055';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(p.x + TW/2 - 6, p.y - 8, 12, 10);
+  ctx.fill(); ctx.stroke();
+  // Leaves (3 circles)
+  [[0,-16,'#1A4A20'],[-8,-22,'#0F3015'],[8,-22,'#0F3015']].forEach(([dx,dy,col]) => {
+    ctx.beginPath();
+    ctx.arc(p.x + TW/2 + dx, p.y + dy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+    ctx.strokeStyle = '#2A6030';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
   });
 }
 
-// ─────────────────────────────────────────────────────────────────
-// MAIN RENDER LOOP
-// ─────────────────────────────────────────────────────────────────
-function render() {
+function drawServerRack(gx, gy) {
+  const p = iso(gx, gy, 0);
+  const dw = TW * 0.5, dh = WH * 2.0;
+  ctx.fillStyle = '#0A0025';
+  ctx.strokeStyle = '#2A0055';
+  ctx.lineWidth = 1;
+  ctx.fillRect(p.x + TW/4, p.y - dh, dw, dh);
+  ctx.strokeRect(p.x + TW/4, p.y - dh, dw, dh);
+  // Server lights
+  for (let i = 0; i < 6; i++) {
+    const pulse = Math.sin(animPhase * 0.1 + i * 1.2) > 0.3;
+    ctx.beginPath();
+    ctx.arc(p.x + TW/4 + 6, p.y - dh + 10 + i * 12, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = pulse ? '#00FF88' : '#003322';
+    ctx.shadowColor = '#00FF88';
+    ctx.shadowBlur = pulse ? 4 : 0;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawCoffeeMachine(gx, gy) {
+  const p = iso(gx, gy, 0);
+  ctx.fillStyle = '#1A0030';
+  ctx.strokeStyle = '#3A0055';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(p.x + TW/2 - 8, p.y - 20, 16, 20);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2A0050';
+  ctx.fillRect(p.x + TW/2 - 5, p.y - 18, 10, 8);
+  ctx.fillStyle = '#FF6600';
+  ctx.beginPath();
+  ctx.arc(p.x + TW/2, p.y - 4, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN DRAW LOOP
+// ─────────────────────────────────────────────────────────────
+function draw() {
   ctx.clearRect(0, 0, W, H);
-
-  // Background radial gradient
-  var bg = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, 500);
-  bg.addColorStop(0, '#14002A');
-  bg.addColorStop(1, '#050008');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
   ctx.save();
   ctx.translate(panX, panY);
   ctx.scale(scale, scale);
 
-  drawWalls();
-  drawScreen();
+  // Ambient background
+  const bgGrad = ctx.createRadialGradient(OX, OY * 4, 50, OX, H * 0.5, 600);
+  bgGrad.addColorStop(0, '#0A0020');
+  bgGrad.addColorStop(1, '#050008');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(-200, -100, W + 400, H + 200);
+
+  // Floor & walls
   drawFloor();
-  buildAndDraw();
-  updateSteam();
+  drawWalls();
+  drawPriceScreen();
+
+  // Reset click targets each frame
+  clickTargets = [];
+
+  // Build drawables list (painter's algorithm)
+  const drawables = [
+    ...COIN_DESKS.map(cd => ({ ...cd, type: 'coin_desk',  depth: cd.gx + cd.gy })),
+    ...MAIN_AGENTS.map(a  => ({ ...a,  type: 'main_agent', depth: a.gx  + a.gy + 0.5 })),
+    ...bubbles.map(b      => ({ ...b,  type: 'bubble',     depth: b.gx  + b.gy + 1.0 })),
+    { type: 'plant',  gx: 1,  gy: 1,  depth: 2   },
+    { type: 'plant',  gx: 17, gy: 1,  depth: 18  },
+    { type: 'server', gx: 17, gy: 5,  depth: 22  },
+    { type: 'coffee', gx: 1,  gy: 10, depth: 11  },
+  ];
+  drawables.sort((a, b) => a.depth - b.depth);
+
+  for (const d of drawables) {
+    switch (d.type) {
+      case 'coin_desk':  drawCoinDesk(d);  break;
+      case 'main_agent': drawMainAgent(d); break;
+      case 'bubble':     drawBubble(d);    break;
+      case 'plant':      drawPlant(d.gx, d.gy); break;
+      case 'server':     drawServerRack(d.gx, d.gy); break;
+      case 'coffee':     drawCoffeeMachine(d.gx, d.gy); break;
+    }
+  }
+
+  // Atmospheric overlay (depth fog from top)
+  const fogGrad = ctx.createLinearGradient(0, 0, 0, H);
+  fogGrad.addColorStop(0, 'rgba(5,0,15,0.35)');
+  fogGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+  fogGrad.addColorStop(1, 'rgba(5,0,15,0.15)');
+  ctx.fillStyle = fogGrad;
+  ctx.fillRect(0, 0, W, H);
 
   ctx.restore();
 
-  updateAgents();
-  requestAnimationFrame(render);
+  frameCount++;
+  animPhase++;
+  updateBubbles();
+  requestAnimationFrame(draw);
 }
 
-render();
+// ─────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────
+fetchBTC();
+fetchCoinChanges();
+fetchAgents();
+
+setInterval(fetchBTC,         10000);
+setInterval(fetchCoinChanges, 30000);
+setInterval(fetchAgents,      30000);
+
+// Timeframe button click (mapped on canvas - handled via screen quadrant)
+// We use a simpler approach: keyboard shortcut
+document.addEventListener('keydown', e => {
+  const map = { '1': '1m', '5': '5m', 'h': '1h', 'd': '1d' };
+  if (map[e.key]) { interval = map[e.key]; fetchBTC(); }
+});
+
+draw();
 </script>
 </body>
 </html>
