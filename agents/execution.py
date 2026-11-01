@@ -26,10 +26,8 @@ def execute_buy(coin, trade_amount, price, stop_loss, take_profit):
     if balance < trade_amount:
         return {"success": False, "reason": "Balance insuffisante"}
 
-    # Calcul des tokens achetés
     tokens = trade_amount / price
-
-    open_position(coin, tokens, price)
+    open_position(coin, trade_amount, price)  # on stocke les euros, pas les tokens
     update_balance(balance - trade_amount)
 
     print(f"[Execution] ACHAT {coin} | {tokens:.6f} tokens à {price}$ | Mise: {trade_amount}$")
