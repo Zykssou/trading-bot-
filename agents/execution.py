@@ -46,9 +46,12 @@ def execute_buy(coin, trade_amount, price, stop_loss, take_profit):
     }
 
 def execute_sell(position_id, coin, close_price, pnl):
+    from database.db import get_open_positions
+    positions = get_open_positions()
+    amount = next((p[2] for p in positions if p[0] == position_id), 0)
     balance = get_balance()
     close_position(position_id, close_price, pnl)
-    update_balance(balance + pnl)
+    update_balance(balance + amount + pnl)
 
     result = "PROFIT" if pnl >= 0 else "PERTE"
     print(f"[Execution] VENTE {coin} | {result}: {pnl:+.2f}$ | Prix: {close_price}$")
