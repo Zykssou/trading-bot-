@@ -8,7 +8,7 @@ from agents.social import get_social_score
 from agents.news import analyze_news
 from agents.risk import check_risk, check_positions_to_close
 from agents.execution import execute_buy, execute_sell
-from agents.reporting import report_buy, report_sell, report_summary, report_signal
+from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily
 from config import SCAN_INTERVAL_SECONDS
 
 def run():
@@ -21,6 +21,7 @@ def run():
 
     previous_data_store = {}
     cycle = 0
+    last_daily_report = None
 
     while True:
         cycle += 1
@@ -108,6 +109,13 @@ def run():
         # Rapport toutes les 10 cycles
         if cycle % 10 == 0:
             report_summary()
+
+        # Rapport journalier à 20h
+        now = datetime.now()
+        today_str = now.strftime("%d/%m/%Y")
+        if now.hour == 20 and last_daily_report != today_str:
+            report_daily(today_str)
+            last_daily_report = today_str
 
         print(f"[Orchestrateur] Prochain scan dans {SCAN_INTERVAL_SECONDS}s...")
         time.sleep(SCAN_INTERVAL_SECONDS)

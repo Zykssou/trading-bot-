@@ -55,10 +55,11 @@ def init_db():
     """)
 
     # Portefeuille initial si vide
+    from config import INITIAL_BALANCE
     c.execute("SELECT COUNT(*) FROM portfolio")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO portfolio (balance, updated_at) VALUES (10000, ?)",
-                  (datetime.now().isoformat(),))
+        c.execute("INSERT INTO portfolio (balance, updated_at) VALUES (?, ?)",
+                  (INITIAL_BALANCE, datetime.now().isoformat()))
 
     conn.commit()
     conn.close()
@@ -126,6 +127,18 @@ def close_position(position_id, close_price, pnl):
     """, (close_price, pnl, datetime.now().isoformat(), position_id))
     conn.commit()
     conn.close()
+
+def get_today_trades():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    today = datetime.now().strftime("%Y-%m-%d")
+    c.execute("""
+        SELECT coin, pnl, closed_at FROM positions
+        WHERE status = 'closed' AND closed_at LIKE ?
+    """, (f"{today}%",))
+    rows = c.fetchall()
+    conn.close()
+    return rows
 
 def get_recent_signals(limit=10):
     conn = sqlite3.connect(DB_PATH)

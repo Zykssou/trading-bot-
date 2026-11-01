@@ -8,7 +8,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 COINGECKO_API_URL = "https://api.coingecko.com/api/v3"
 
 # Paper trading
-INITIAL_BALANCE = 10000  # 10 000$ fictifs
+INITIAL_BALANCE = 1000  # 1 000€ fictifs
 MAX_TRADE_PERCENT = 0.05  # max 5% du portefeuille par trade
 STOP_LOSS_PERCENT = 0.08  # stop loss à -8%
 TAKE_PROFIT_PERCENT = 0.20  # take profit à +20%
