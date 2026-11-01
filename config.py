@@ -37,8 +37,26 @@ BUYABLE_COINS = [
 LARGE_CAPS = ["bitcoin", "ethereum", "bnb", "xrp", "cardano", "solana", "avalanche-2", "chainlink"]
 MEME_COINS = ["pepe", "shiba-inu", "floki", "bonk", "wojak"]
 
-# Or et matières premières (via API alternative)
-GOLD_SYMBOL = "XAU"
+# Mapping CoinGecko ID → symbole Binance
+BINANCE_SYMBOLS = {
+    "bitcoin":            "BTCUSDT",
+    "ethereum":           "ETHUSDT",
+    "solana":             "SOLUSDT",
+    "bnb":                "BNBUSDT",
+    "xrp":                "XRPUSDT",
+    "cardano":            "ADAUSDT",
+    "avalanche-2":        "AVAXUSDT",
+    "chainlink":          "LINKUSDT",
+    "pepe":               "PEPEUSDT",
+    "shiba-inu":          "SHIBUSDT",
+    "floki":              "FLOKIUSDT",
+    "bonk":               "BONKUSDT",
+    "wojak":              "WOJAKUSDT",
+    "sui":                "SUIUSDT",
+    "injective-protocol": "INJUSDT",
+    "render-token":       "RENDERUSDT",
+    "fetch-ai":           "FETUSDT",
+}
 
 # Stratégie par coin — seuil entrée, stop-loss, take-profit
 COIN_PROFILES = {
