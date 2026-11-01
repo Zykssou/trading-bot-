@@ -384,45 +384,50 @@ let tvZone = null; // set after SC is computed
 // Dashboard modal
 async function openDash() {
   document.getElementById('dash-modal').classList.add('open');
-  // Fetch live data
   try {
     const r = await fetch('/api/agents');
     const data = await r.json();
     const s = data._stats || {};
-    const t = data.trader || {};
+    const portfolio = data.portfolio || {};
+    const trader = data.trader || {};
 
-    const balance = s.balance ?? {{ balance | default(1000) }};
-    const pnl = s.pnl ?? {{ pnl | default(0) }};
-    const invested = (t.info || []).find(i=>i.label==='Balance liquide') ? 0 : 0;
-    const winrate = s.win_rate ?? {{ win_rate | default(0) }};
-    const totalTrades = s.positions !== undefined ? s.positions : 0;
+    const balance = typeof s.balance === 'number' ? s.balance : {{ balance | default(1000) }};
+    const pnl     = typeof s.pnl    === 'number' ? s.pnl    : {{ pnl | default(0) }};
+    const winrate  = typeof s.win_rate === 'number' ? s.win_rate : {{ win_rate | default(0) }};
 
-    document.getElementById('d-balance').textContent = balance.toFixed(2) + '€';
-    document.getElementById('d-balance').className = 'dstat-val ' + (balance >= 1000 ? 'pos' : 'neg');
+    // Balance
+    const balEl = document.getElementById('d-balance');
+    balEl.textContent = balance.toFixed(2) + ' €';
+    balEl.className = 'dstat-val ' + (balance >= 1000 ? 'pos' : 'neg');
 
-    document.getElementById('d-pnl').textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '€';
-    document.getElementById('d-pnl').className = 'dstat-val ' + (pnl >= 0 ? 'pos' : 'neg');
+    // P&L
+    const pnlEl = document.getElementById('d-pnl');
+    pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + ' €';
+    pnlEl.className = 'dstat-val ' + (pnl >= 0 ? 'pos' : 'neg');
 
-    document.getElementById('d-winrate').textContent = winrate + '%';
-    document.getElementById('d-winrate').className = 'dstat-val ' + (winrate >= 50 ? 'pos' : 'neg');
+    // Win rate
+    const wrEl = document.getElementById('d-winrate');
+    wrEl.textContent = winrate + ' %';
+    wrEl.className = 'dstat-val ' + (winrate >= 50 ? 'pos' : 'neg');
 
-    // Get trader info
-    const tInfo = t.info || [];
-    const invRow = tInfo.find(i => i.label === 'Investi') || tInfo.find(i => i.label.includes('nvesti'));
-    document.getElementById('d-invested').textContent = invRow ? invRow.value : '—';
+    // Capital investi — depuis portfolio.info
+    const pInfo = portfolio.info || [];
+    const invRow = pInfo.find(i => i.label === 'Investi') || pInfo.find(i => (i.label||'').toLowerCase().includes('invest'));
+    document.getElementById('d-invested').textContent = invRow ? invRow.value : (1000 - balance).toFixed(2) + ' €';
 
-    const winsRow = tInfo.find(i => i.label === 'Trades gagnés' || i.label.includes('Win'));
-    const totalRow = tInfo.find(i => i.label === 'Trades fermés' || i.label.includes('total'));
+    // Trades gagnés / perdus — depuis trader.info
+    const tInfo = trader.info || [];
+    const totalRow = tInfo.find(i => (i.label||'').includes('fermés') || (i.label||'').includes('total'));
     const totalT = totalRow ? parseInt(totalRow.value) || 0 : 0;
-    const winsT = Math.round(totalT * winrate / 100);
-    const lossesT = totalT - winsT;
-    document.getElementById('d-wins').textContent = winsT + ' (' + winrate + '%)';
-    document.getElementById('d-losses').textContent = lossesT;
+    const winsT  = Math.round(totalT * winrate / 100);
+    const lossT  = totalT - winsT;
+    document.getElementById('d-wins').textContent    = winsT  + '  (' + winrate + '%)';
+    document.getElementById('d-losses').textContent  = lossT  + '  (' + (100 - winrate) + '%)';
 
-    // Bar
+    // Barre gains / pertes
     const barPct = Math.max(0, Math.min(100, winrate));
     document.getElementById('d-bar').style.width = barPct + '%';
-    document.getElementById('d-bar-left').textContent = '▲ Gains ' + winrate + '%';
+    document.getElementById('d-bar-left').textContent  = '▲ Gains ' + winrate + '%';
     document.getElementById('d-bar-right').textContent = (100 - winrate) + '% Pertes ▼';
 
     // Positions
