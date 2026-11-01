@@ -10,7 +10,7 @@ from agents.risk import check_risk, check_positions_to_close
 from agents.execution import execute_buy, execute_sell, execute_short
 from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily, report_short_open
 from config import SCAN_INTERVAL_SECONDS, LARGE_CAPS, MEME_COINS
-from database.db import get_open_positions
+from database.db import get_open_positions, update_position_price
 
 def run():
     print("=" * 50)
@@ -38,7 +38,18 @@ def run():
             if isinstance(data, dict) and "price" in data
         }
 
-        # 2. Vérifier les positions à fermer (stop-loss / take-profit)
+        # 2. Mettre à jour current_price + pnl de chaque position ouverte
+        for pos in get_open_positions():
+            pos_id, coin, amount, buy_price, _, _, _, _, _, position_type = pos
+            price_now = current_prices.get(coin)
+            if price_now:
+                if position_type == 'short':
+                    pnl_val = amount * (buy_price - price_now) / buy_price
+                else:
+                    pnl_val = amount * (price_now - buy_price) / buy_price
+                update_position_price(pos_id, price_now, round(pnl_val, 4))
+
+        # 3. Vérifier les positions à fermer (stop-loss / take-profit)
         positions_to_close = check_positions_to_close(current_prices)
         for pos in positions_to_close:
             result = execute_sell(pos["id"], pos["coin"], pos["price"], pos["pnl"])

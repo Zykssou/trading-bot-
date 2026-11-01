@@ -101,6 +101,14 @@ def save_signal(coin, signal_type, score, reason):
     conn.commit()
     conn.close()
 
+def update_position_price(position_id, current_price, pnl):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE positions SET current_price = ?, pnl = ? WHERE id = ?",
+              (current_price, pnl, position_id))
+    conn.commit()
+    conn.close()
+
 def get_open_positions():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
