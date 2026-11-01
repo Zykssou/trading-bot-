@@ -27,5 +27,15 @@ TRACKED_COINS = [
     "wojak", "sui", "injective-protocol", "render-token", "fetch-ai"
 ]
 
+# Coins autorisés à l'achat (volatile = meilleur win rate)
+BUYABLE_COINS = [
+    "pepe", "shiba-inu", "floki", "bonk", "wojak",
+    "sui", "injective-protocol", "render-token", "fetch-ai", "solana"
+]
+
+# Catégories pour anti-corrélation
+LARGE_CAPS = ["bitcoin", "ethereum", "bnb", "xrp", "cardano", "solana", "avalanche-2", "chainlink"]
+MEME_COINS = ["pepe", "shiba-inu", "floki", "bonk", "wojak"]
+
 # Or et matières premières (via API alternative)
 GOLD_SYMBOL = "XAU"

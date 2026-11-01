@@ -1,7 +1,7 @@
 import requests
 import time
 from datetime import datetime
-from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD
+from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS
 from database.db import save_market_data, save_signal
 
 def fetch_coin_data(coin_id):
@@ -58,24 +58,40 @@ def analyze_coin(coin_data, previous_data=None):
         score += 20
         reasons.append(f"Hausse {price_change_24h:.1f}% en 24h")
 
-    # Signal volume
+    # Signal volume — confirmation obligatoire pour BUY
+    volume_confirmed = False
     if previous_data and previous_data.get("volume_24h", 0) > 0:
         volume_ratio = coin_data["volume_24h"] / previous_data["volume_24h"]
         if volume_ratio >= VOLUME_SPIKE_THRESHOLD:
             score += 40
+            volume_confirmed = True
             reasons.append(f"Volume x{volume_ratio:.1f} vs hier")
+        elif volume_ratio >= 1.1:
+            score += 10
+            volume_confirmed = True
+            reasons.append(f"Volume +{(volume_ratio-1)*100:.0f}%")
 
     # Signal baisse (signal de vente)
     if price_change_1h <= -PRICE_CHANGE_THRESHOLD:
         score -= 30
         reasons.append(f"Baisse {price_change_1h:.1f}% en 1h")
 
-    signal_type = "buy" if score >= 40 else "sell" if score <= -20 else "hold"
+    coin_id = coin_data.get("coin", "")
+    buyable = coin_id in BUYABLE_COINS
+
+    if score >= 40 and buyable and volume_confirmed:
+        signal_type = "buy"
+    elif score <= -20:
+        signal_type = "sell"
+    else:
+        signal_type = "hold"
 
     return {
         "signal_type": signal_type,
         "score": score,
-        "reason": " | ".join(reasons) if reasons else "Marché stable"
+        "reason": " | ".join(reasons) if reasons else "Marché stable",
+        "volume_confirmed": volume_confirmed,
+        "buyable": buyable,
     }
 
 def run_scanner(previous_data_store=None):

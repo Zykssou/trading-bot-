@@ -9,7 +9,8 @@ from agents.news import analyze_news
 from agents.risk import check_risk, check_positions_to_close
 from agents.execution import execute_buy, execute_sell
 from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily
-from config import SCAN_INTERVAL_SECONDS
+from config import SCAN_INTERVAL_SECONDS, LARGE_CAPS, MEME_COINS
+from database.db import get_open_positions
 
 def run():
     print("=" * 50)
@@ -66,6 +67,19 @@ def run():
                 continue
 
             coin = signal.get("coin", "")
+
+            # Anti-corrélation : max 1 large cap + 1 meme coin simultanément
+            open_positions = get_open_positions()
+            open_coins = [p[1] for p in open_positions]
+            open_large = sum(1 for c in open_coins if c in LARGE_CAPS)
+            open_meme = sum(1 for c in open_coins if c in MEME_COINS)
+            if coin in LARGE_CAPS and open_large >= 1:
+                print(f"[Orchestrateur] {coin} ignoré — 1 large cap déjà ouvert")
+                continue
+            if coin in MEME_COINS and open_meme >= 2:
+                print(f"[Orchestrateur] {coin} ignoré — 2 meme coins déjà ouverts")
+                continue
+
             history = analyze_history(coin)
             social = get_social_score(coin)
             news = analyze_news(coin)
