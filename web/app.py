@@ -281,6 +281,11 @@ def api_agents():
     db.close()
     return jsonify(data)
 
+@app.route("/api/chart/<coin>")
+def api_chart(coin):
+    data = fetch_chart_ohlc(coin)
+    return jsonify(data)
+
 @app.route("/api/traders")
 def api_traders():
     try:

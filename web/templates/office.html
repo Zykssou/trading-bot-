@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trading Bot — Tournament</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
@@ -117,20 +118,43 @@
   }
 
   /* MODAL */
-  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 50; align-items: center; justify-content: center; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 0; }
   .overlay.open { display: flex; }
-  .mbox { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 24px; max-width: 520px; width: 94%; max-height: 85vh; overflow-y: auto; position: relative; }
+  .mbox { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 24px; max-width: 780px; width: 96%; position: relative; margin: auto; }
   .mclose { position: absolute; top: 14px; right: 16px; font-size: 20px; cursor: pointer; color: #7d8590; line-height: 1; }
   .mclose:hover { color: #f85149; }
   .m-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
   .m-sub { font-size: 12px; color: #7d8590; margin-bottom: 18px; }
-  .m-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .m-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
   .m-cell { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; }
   .m-lbl { font-size: 10px; color: #7d8590; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
   .m-val { font-size: 16px; font-weight: 700; }
   .m-section { font-size: 11px; color: #7d8590; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 8px; }
-  .pos-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+
+  /* Positions cliquables */
+  .pos-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #21262d; font-size: 13px; cursor: pointer; border-radius: 6px; transition: background .1s; }
+  .pos-row:hover { background: #1c2128; }
+  .pos-row.active { background: #1c2128; border-left: 3px solid #58a6ff; }
   .pos-row:last-child { border-bottom: none; }
+  .pos-coin { font-weight: 700; font-size: 15px; }
+  .pos-side-badge { display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 10px; font-weight: 700; margin-left: 8px; }
+  .pos-side-long  { background: #1f4a2e; color: #3fb950; }
+  .pos-side-short { background: #4a1f1f; color: #f85149; }
+  .pos-meta { font-size: 11px; color: #7d8590; margin-top: 2px; }
+  .pos-right { text-align: right; }
+
+  /* Chart zone */
+  .chart-zone { margin-top: 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; display: none; }
+  .chart-zone.visible { display: block; }
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .chart-title { font-size: 14px; font-weight: 600; }
+  .chart-levels { display: flex; gap: 12px; }
+  .cl-item { font-size: 11px; }
+  .cl-tp { color: #3fb950; }
+  .cl-sl { color: #f85149; }
+  .cl-entry { color: #58a6ff; }
+  #pos-chart { width: 100%; height: 360px; }
+  .chart-loading { color: #7d8590; font-size: 13px; text-align: center; padding: 40px; }
   .empty { color: #7d8590; font-size: 13px; padding: 8px 0; }
 
   /* loading */
@@ -173,8 +197,17 @@
     <div class="m-title" id="m-title"></div>
     <div class="m-sub" id="m-sub"></div>
     <div class="m-grid" id="m-grid"></div>
-    <div class="m-section">Positions ouvertes</div>
+    <div class="m-section">Positions ouvertes — cliquez pour voir le graphique</div>
     <div id="m-positions"><div class="empty">Aucune position ouverte</div></div>
+
+    <!-- CHART ZONE -->
+    <div class="chart-zone" id="chart-zone">
+      <div class="chart-header">
+        <div class="chart-title" id="chart-title-text"></div>
+        <div class="chart-levels" id="chart-levels-text"></div>
+      </div>
+      <div id="pos-chart"></div>
+    </div>
   </div>
 </div>
 
@@ -377,10 +410,17 @@ function setSort(col) {
 
 // ── MODAL ──────────────────────────────────────────────────────────────────
 
+let activeChart = null;
+let currentPositions = [];
+
 async function openTrader(id) {
   const rows = buildRows();
   const r = rows.find(x => x.id === id);
   if (!r) return;
+
+  // Reset chart
+  if (activeChart) { activeChart.remove(); activeChart = null; }
+  document.getElementById('chart-zone').classList.remove('visible');
 
   document.getElementById('m-title').textContent = '#' + r.id + ' — ' + r.name;
   document.getElementById('m-sub').textContent   = r.description || r.strategy;
@@ -389,10 +429,12 @@ async function openTrader(id) {
   const pnlPct = r.pnl_pct || 0;
   const wr     = r.win_rate || 0;
   const trades = typeof r.total_trades === 'number' ? r.total_trades : 0;
+  const tv     = r.total_value || INITIAL;
+  const bal    = r.balance || INITIAL;
 
   document.getElementById('m-grid').innerHTML = `
-    <div class="m-cell"><div class="m-lbl">Balance</div><div class="m-val">${(r.balance||INITIAL).toFixed(2)}€</div></div>
-    <div class="m-cell"><div class="m-lbl">Valeur totale</div><div class="m-val ${(r.total_value||INITIAL)>=INITIAL?'val-pos':'val-neg'}">${(r.total_value||INITIAL).toFixed(2)}€</div></div>
+    <div class="m-cell"><div class="m-lbl">Balance</div><div class="m-val">${bal.toFixed(2)}€</div></div>
+    <div class="m-cell"><div class="m-lbl">Valeur totale</div><div class="m-val ${tv>=INITIAL?'val-pos':'val-neg'}">${tv.toFixed(2)}€</div></div>
     <div class="m-cell"><div class="m-lbl">P&L</div><div class="m-val ${pnl>=0?'val-pos':'val-neg'}">${pnl>=0?'+':''}${pnl.toFixed(2)}€</div></div>
     <div class="m-cell"><div class="m-lbl">P&L %</div><div class="m-val ${pnlPct>=0?'val-pos':'val-neg'}">${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%</div></div>
     <div class="m-cell"><div class="m-lbl">Trades fermés</div><div class="m-val">${trades}</div></div>
@@ -402,37 +444,160 @@ async function openTrader(id) {
   `;
 
   // Load open positions
-  let posHtml = '<div class="empty">Aucune position ouverte</div>';
+  currentPositions = [];
+  let posHtml = '<div class="empty">Aucune position ouverte — cliquez sur une position pour voir le graphique</div>';
+
   if (id > 0) {
     try {
       const res = await fetch('/api/traders');
       const traders = await res.json();
       const t = traders.find(x => x.id === id);
       if (t && t.positions_detail && t.positions_detail.length > 0) {
-        posHtml = t.positions_detail.map(p => `
-          <div class="pos-row">
-            <span>${p.coin.toUpperCase()} <span style="color:#7d8590;font-size:11px">${p.position_type}</span></span>
-            <span class="${p.pnl>=0?'val-pos':'val-neg'}">${p.pnl>=0?'+':''}${p.pnl.toFixed(2)}€</span>
-          </div>
-        `).join('');
+        currentPositions = t.positions_detail;
+        posHtml = currentPositions.map((p, i) => {
+          const slPct = r.sl || 5;
+          const tpPct = r.tp || 10;
+          const slPrice = p.position_type === 'short' ? p.buy_price * (1 + slPct/100) : p.buy_price * (1 - slPct/100);
+          const tpPrice = p.position_type === 'short' ? p.buy_price * (1 - tpPct/100) : p.buy_price * (1 + tpPct/100);
+          return `
+          <div class="pos-row" onclick="loadChart('${p.coin}', ${p.buy_price}, ${slPrice}, ${tpPrice}, '${p.position_type}', this)">
+            <div>
+              <span class="pos-coin">${p.coin.toUpperCase()}</span>
+              <span class="pos-side-badge pos-side-${p.position_type}">${p.position_type.toUpperCase()}</span>
+              <div class="pos-meta">Mise: ${p.amount.toFixed(2)}€ · Entrée: $${p.buy_price.toFixed(4)}</div>
+            </div>
+            <div class="pos-right">
+              <div class="${p.pnl>=0?'val-pos':'val-neg'}">${p.pnl>=0?'+':''}${p.pnl.toFixed(2)}€</div>
+              <div style="font-size:10px;color:#7d8590;margin-top:2px">▼ voir graphique</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    } catch(e) { console.error(e); }
+  } else if (r._raw_agents) {
+    // Bot 0: show main positions from /api/agents
+    try {
+      const res = await fetch('/api/agents');
+      const ag = await res.json();
+      const posLogs = (ag.trader && ag.trader.logs) || [];
+      const openPositions = posLogs.filter(l => l.text.startsWith('[OPEN]'));
+      if (openPositions.length) {
+        posHtml = openPositions.map(l => {
+          // Parse "[OPEN] BTC LONG PnL:+1.23€"
+          const m = l.text.match(/\[OPEN\] (\S+) (\S+)/);
+          const coin = m ? m[1].toLowerCase() : '';
+          const type = m ? m[2].toLowerCase() : 'long';
+          return `
+          <div class="pos-row" onclick="${coin ? `loadChart('${coin}', 0, 0, 0, '${type}', this)` : ''}">
+            <span style="color:#e6edf3">${l.text.replace('[OPEN] ','')}</span>
+            <span style="color:#7d8590;font-size:10px">▼ graphique</span>
+          </div>`;
+        }).join('');
       }
     } catch(e) {}
-  } else if (r._raw_agents) {
-    const ag = r._raw_agents;
-    const trader = ag.trader;
-    if (trader && trader.logs && trader.logs.length) {
-      posHtml = trader.logs.map(l => `
-        <div class="pos-row"><span style="color:#7d8590;font-size:12px">${l.text}</span></div>
-      `).join('');
-    }
   }
 
   document.getElementById('m-positions').innerHTML = posHtml;
   document.getElementById('modal').classList.add('open');
 }
 
+async function loadChart(coin, entryPrice, slPrice, tpPrice, posType, rowEl) {
+  // Highlight active row
+  document.querySelectorAll('.pos-row').forEach(r => r.classList.remove('active'));
+  rowEl.classList.add('active');
+
+  const zone = document.getElementById('chart-zone');
+  zone.classList.add('visible');
+  document.getElementById('chart-title-text').textContent = coin.toUpperCase() + ' — Bougies 5min (3 jours)';
+
+  const lvlEl = document.getElementById('chart-levels-text');
+  if (entryPrice > 0) {
+    lvlEl.innerHTML = `
+      <span class="cl-entry">📍 Entrée: $${entryPrice.toFixed(4)}</span>
+      <span class="cl-tp">🎯 TP: $${tpPrice.toFixed(4)}</span>
+      <span class="cl-sl">🛑 SL: $${slPrice.toFixed(4)}</span>
+    `;
+  } else {
+    lvlEl.innerHTML = '';
+  }
+
+  document.getElementById('pos-chart').innerHTML = '<div class="chart-loading">Chargement des bougies...</div>';
+
+  // Destroy old chart
+  if (activeChart) { activeChart.remove(); activeChart = null; }
+
+  try {
+    const res = await fetch('/api/chart/' + coin);
+    const ohlc = await res.json();
+
+    const container = document.getElementById('pos-chart');
+    container.innerHTML = '';
+
+    if (!ohlc || ohlc.length === 0) {
+      container.innerHTML = '<div class="chart-loading">Pas encore assez de données pour ce coin.</div>';
+      return;
+    }
+
+    activeChart = LightweightCharts.createChart(container, {
+      layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9' },
+      grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      rightPriceScale: { borderColor: '#30363d' },
+      timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+      height: 360,
+    });
+
+    const candleSeries = activeChart.addCandlestickSeries({
+      upColor: '#3fb950', downColor: '#f85149',
+      borderVisible: false,
+      wickUpColor: '#3fb950', wickDownColor: '#f85149',
+    });
+    candleSeries.setData(ohlc);
+
+    if (entryPrice > 0) {
+      candleSeries.createPriceLine({ price: tpPrice,    color: '#3fb950', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '🎯 TP' });
+      candleSeries.createPriceLine({ price: entryPrice, color: '#58a6ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '📍 Entrée' });
+      candleSeries.createPriceLine({ price: slPrice,    color: '#f85149', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '🛑 SL' });
+    }
+
+    // Volume
+    const volSeries = activeChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+    activeChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+    volSeries.setData(ohlc.map(d => ({
+      time: d.time,
+      value: d.volume,
+      color: d.close >= d.open ? 'rgba(63,185,80,0.25)' : 'rgba(248,81,73,0.25)',
+    })));
+
+    // MA20
+    const closes = ohlc.map(d => d.close);
+    const ma20 = [];
+    for (let i = 19; i < ohlc.length; i++) {
+      const avg = closes.slice(i-19, i+1).reduce((a,b) => a+b, 0) / 20;
+      ma20.push({ time: ohlc[i].time, value: avg });
+    }
+    if (ma20.length) {
+      const maSeries = activeChart.addLineSeries({ color: '#e3b341', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+      maSeries.setData(ma20);
+    }
+
+    activeChart.timeScale().fitContent();
+    window.addEventListener('resize', () => {
+      if (activeChart) activeChart.applyOptions({ width: container.clientWidth });
+    });
+
+    // Scroll to chart
+    zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch(e) {
+    document.getElementById('pos-chart').innerHTML = '<div class="chart-loading">Erreur de chargement du graphique.</div>';
+  }
+}
+
 function closeModal() {
+  if (activeChart) { activeChart.remove(); activeChart = null; }
   document.getElementById('modal').classList.remove('open');
+  document.getElementById('chart-zone').classList.remove('visible');
 }
 
 // ── INIT & AUTO-REFRESH ────────────────────────────────────────────────────
