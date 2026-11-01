@@ -1,57 +1,42 @@
 import requests
-import json
 import time
+import os
 from datetime import datetime
-from config import TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS, COIN_PROFILES, BINANCE_SYMBOLS
+from config import COINGECKO_API_URL, TRACKED_COINS, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD, BUYABLE_COINS, COIN_PROFILES
 from database.db import save_market_data, save_signal
-
-BINANCE_API = "https://api.binance.com/api/v3"
 
 def fetch_all_coins_data(coin_ids):
     try:
-        tradeable = [(c, BINANCE_SYMBOLS[c]) for c in coin_ids if c in BINANCE_SYMBOLS]
-        if not tradeable:
-            return {}
+        api_key = os.getenv("COINGECKO_API_KEY", "")
+        headers = {"x-cg-demo-api-key": api_key} if api_key else {}
 
-        symbols = [sym for _, sym in tradeable]
-        reverse_map = {sym: cid for cid, sym in tradeable}
-
-        # Formatage strict sans espaces pour Binance
-        symbols_str = "[" + ",".join(f'"{s}"' for s in symbols) + "]"
-
-        # 24h stats (prix + variation 24h + volume)
-        r24 = requests.get(f"{BINANCE_API}/ticker/24hr?symbols={symbols_str}", timeout=15)
-        # 1h stats (variation 1h)
-        r1h = requests.get(f"{BINANCE_API}/ticker?symbols={symbols_str}&windowSize=1h", timeout=15)
-
-        results = {}
-        if r24.status_code == 200:
-            for t in r24.json():
-                cid = reverse_map.get(t["symbol"])
-                if cid:
-                    results[cid] = {
-                        "coin": cid,
-                        "price": float(t["lastPrice"]),
-                        "volume_24h": float(t["quoteVolume"]),
-                        "price_change_1h": 0,
-                        "price_change_24h": float(t["priceChangePercent"]),
-                        "market_cap": 0,
-                    }
-
-        if r1h.status_code == 200:
-            for t in r1h.json():
-                cid = reverse_map.get(t["symbol"])
-                if cid and cid in results:
-                    results[cid]["price_change_1h"] = float(t["priceChangePercent"])
-
-        if len(results) == 0:
-            print(f"[Scanner] DEBUG r24 status={r24.status_code} body={str(r24.text[:300])}")
-            print(f"[Scanner] DEBUG r1h status={r1h.status_code} body={str(r1h.text[:300])}")
-        print(f"[Scanner] Binance OK — {len(results)}/{len(tradeable)} coins")
-        return results
-
+        url = f"{COINGECKO_API_URL}/coins/markets"
+        params = {
+            "vs_currency": "usd",
+            "ids": ",".join(coin_ids),
+            "order": "market_cap_desc",
+            "per_page": 250,
+            "page": 1,
+            "price_change_percentage": "1h,24h"
+        }
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        if response.status_code == 200:
+            results = {}
+            for coin in response.json():
+                results[coin["id"]] = {
+                    "coin": coin["id"],
+                    "price": coin["current_price"] or 0,
+                    "volume_24h": coin["total_volume"] or 0,
+                    "price_change_1h": coin.get("price_change_percentage_1h_in_currency") or 0,
+                    "price_change_24h": coin.get("price_change_percentage_24h") or 0,
+                    "market_cap": coin["market_cap"] or 0,
+                }
+            print(f"[Scanner] CoinGecko OK — {len(results)} coins")
+            return results
+        else:
+            print(f"[Scanner] CoinGecko erreur {response.status_code}")
     except Exception as e:
-        print(f"[Scanner] Erreur Binance: {e}")
+        print(f"[Scanner] Erreur: {e}")
     return {}
 
 def fetch_trending_coins():
