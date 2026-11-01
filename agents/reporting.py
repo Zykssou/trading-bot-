@@ -79,6 +79,17 @@ def report_daily(date_str):
     )
     send_telegram(msg)
 
+def report_short_open(coin, price, amount_spent, stop_loss, take_profit):
+    msg = (
+        f"🔴 *SHORT — {coin.upper()}*\n"
+        f"Prix: `{price}$`\n"
+        f"Mise: `{amount_spent}$`\n"
+        f"Stop-loss: `{stop_loss}$`\n"
+        f"Take-profit: `{take_profit}$`\n"
+        f"Balance: `{get_balance():.2f}€`"
+    )
+    send_telegram(msg)
+
 def report_signal(s):
     t=s.get('signal_type','')
     coin=s.get('coin','').upper()

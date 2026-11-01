@@ -36,37 +36,38 @@ def check_positions_to_close(current_prices, force_close=False):
     to_close = []
 
     for position in open_positions:
-        pos_id, coin, amount, buy_price, current_price, pnl, status, opened_at, closed_at = position
+        pos_id, coin, amount, buy_price, current_price, pnl, status, opened_at, closed_at, position_type = position
         price_now = current_prices.get(coin)
 
         if not price_now:
             continue
 
-        pnl_pct = (price_now - buy_price) / buy_price
+        is_short = position_type == 'short'
+
+        if is_short:
+            pnl_pct = (buy_price - price_now) / buy_price
+            pnl_value = amount * pnl_pct
+        else:
+            pnl_pct = (price_now - buy_price) / buy_price
+            pnl_value = amount * pnl_pct
 
         if force_close:
             to_close.append({
-                "id": pos_id,
-                "coin": coin,
-                "reason": f"Fermeture urgence marché en panique ({pnl_pct*100:.1f}%)",
-                "price": price_now,
-                "pnl": (price_now - buy_price) * amount / buy_price
+                "id": pos_id, "coin": coin,
+                "reason": f"Fermeture urgence panique ({pnl_pct*100:.1f}%)",
+                "price": price_now, "pnl": pnl_value, "type": position_type
             })
         elif pnl_pct <= -STOP_LOSS_PERCENT:
             to_close.append({
-                "id": pos_id,
-                "coin": coin,
-                "reason": f"Stop-loss déclenché ({pnl_pct*100:.1f}%)",
-                "price": price_now,
-                "pnl": (price_now - buy_price) * amount / buy_price
+                "id": pos_id, "coin": coin,
+                "reason": f"Stop-loss ({pnl_pct*100:.1f}%)",
+                "price": price_now, "pnl": pnl_value, "type": position_type
             })
         elif pnl_pct >= TAKE_PROFIT_PERCENT:
             to_close.append({
-                "id": pos_id,
-                "coin": coin,
-                "reason": f"Take-profit atteint ({pnl_pct*100:.1f}%)",
-                "price": price_now,
-                "pnl": (price_now - buy_price) * amount / buy_price
+                "id": pos_id, "coin": coin,
+                "reason": f"Take-profit ({pnl_pct*100:.1f}%)",
+                "price": price_now, "pnl": pnl_value, "type": position_type
             })
 
     return to_close

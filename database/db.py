@@ -26,7 +26,8 @@ def init_db():
             pnl REAL,
             status TEXT,
             opened_at TEXT,
-            closed_at TEXT
+            closed_at TEXT,
+            position_type TEXT DEFAULT 'long'
         )
     """)
 
@@ -103,18 +104,18 @@ def save_signal(coin, signal_type, score, reason):
 def get_open_positions():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT * FROM positions WHERE status = 'open'")
+    c.execute("SELECT id, coin, amount, buy_price, current_price, pnl, status, opened_at, closed_at, position_type FROM positions WHERE status = 'open'")
     rows = c.fetchall()
     conn.close()
     return rows
 
-def open_position(coin, amount, buy_price):
+def open_position(coin, amount, buy_price, position_type='long'):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO positions (coin, amount, buy_price, current_price, pnl, status, opened_at)
-        VALUES (?, ?, ?, ?, 0, 'open', ?)
-    """, (coin, amount, buy_price, buy_price, datetime.now().isoformat()))
+        INSERT INTO positions (coin, amount, buy_price, current_price, pnl, status, opened_at, position_type)
+        VALUES (?, ?, ?, ?, 0, 'open', ?, ?)
+    """, (coin, amount, buy_price, buy_price, datetime.now().isoformat(), position_type))
     conn.commit()
     conn.close()
 

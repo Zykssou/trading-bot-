@@ -1,5 +1,25 @@
 from database.db import open_position, close_position, update_balance, get_balance
 
+def execute_short(coin, trade_amount, price, stop_loss, take_profit):
+    balance = get_balance()
+    if balance < trade_amount:
+        return {"success": False, "reason": "Balance insuffisante"}
+
+    open_position(coin, trade_amount, price, position_type='short')
+    update_balance(balance - trade_amount)
+
+    print(f"[Execution] SHORT {coin} | Mise: {trade_amount}$ à {price}$")
+    print(f"[Execution] Stop-loss: {stop_loss}$ | Take-profit: {take_profit}$")
+
+    return {
+        "success": True,
+        "coin": coin,
+        "price": price,
+        "amount_spent": trade_amount,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit
+    }
+
 def execute_buy(coin, trade_amount, price, stop_loss, take_profit):
     balance = get_balance()
 

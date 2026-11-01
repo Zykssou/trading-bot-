@@ -7,8 +7,8 @@ from agents.history import analyze_history
 from agents.social import get_social_score
 from agents.news import analyze_news
 from agents.risk import check_risk, check_positions_to_close
-from agents.execution import execute_buy, execute_sell
-from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily
+from agents.execution import execute_buy, execute_sell, execute_short
+from agents.reporting import report_buy, report_sell, report_summary, report_signal, report_daily, report_short_open
 from config import SCAN_INTERVAL_SECONDS, LARGE_CAPS, MEME_COINS
 from database.db import get_open_positions
 
@@ -56,15 +56,13 @@ def run():
                 if result["success"]:
                     report_sell(pos["coin"], pos["price"], pos["pnl"])
 
-        # 3. Analyser les signaux d'achat
+        # 3. Analyser les signaux
         for signal in scanner_signals:
             report_signal(signal)
+            signal_type = signal.get("signal_type")
 
-            if signal.get("signal_type") != "buy":
-                continue
-
-            if market_in_panic:
-                continue
+            # LONG (achat)
+            if signal_type == "buy" and not market_in_panic:
 
             coin = signal.get("coin", "")
 
@@ -119,6 +117,42 @@ def run():
                     stop_loss=risk["stop_loss"],
                     take_profit=risk["take_profit"]
                 )
+
+            # SHORT (vente à découvert) sur signal SELL
+            elif signal_type == "sell":
+                coin = signal.get("coin", "")
+                price = signal.get("price", 0)
+                if price <= 0:
+                    continue
+
+                open_positions = get_open_positions()
+                open_coins = [p[1] for p in open_positions]
+                if coin in open_coins:
+                    continue
+
+                risk = check_risk(coin, 50, price)
+                if not risk["approved"]:
+                    continue
+
+                stop_loss_short = price * (1 + 0.08)
+                take_profit_short = price * (1 - 0.20)
+
+                result = execute_short(
+                    coin=coin,
+                    trade_amount=risk["trade_amount"],
+                    price=price,
+                    stop_loss=stop_loss_short,
+                    take_profit=take_profit_short
+                )
+
+                if result["success"]:
+                    report_short_open(
+                        coin=coin,
+                        price=price,
+                        amount_spent=result["amount_spent"],
+                        stop_loss=stop_loss_short,
+                        take_profit=take_profit_short
+                    )
 
         # Rapport toutes les 10 cycles
         if cycle % 10 == 0:
