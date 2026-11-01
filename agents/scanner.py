@@ -16,12 +16,13 @@ def fetch_all_coins_data(coin_ids):
         symbols = [sym for _, sym in tradeable]
         reverse_map = {sym: cid for cid, sym in tradeable}
 
+        # Formatage strict sans espaces pour Binance
+        symbols_str = "[" + ",".join(f'"{s}"' for s in symbols) + "]"
+
         # 24h stats (prix + variation 24h + volume)
-        r24 = requests.get(f"{BINANCE_API}/ticker/24hr",
-                           params={"symbols": json.dumps(symbols)}, timeout=15)
+        r24 = requests.get(f"{BINANCE_API}/ticker/24hr?symbols={symbols_str}", timeout=15)
         # 1h stats (variation 1h)
-        r1h = requests.get(f"{BINANCE_API}/ticker",
-                           params={"symbols": json.dumps(symbols), "windowSize": "1h"}, timeout=15)
+        r1h = requests.get(f"{BINANCE_API}/ticker?symbols={symbols_str}&windowSize=1h", timeout=15)
 
         results = {}
         if r24.status_code == 200:
