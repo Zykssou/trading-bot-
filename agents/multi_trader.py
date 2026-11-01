@@ -192,5 +192,10 @@ def get_traders_summary():
             "stake_pct": strat[9] * 100 if strat else 5,
             "sl": strat[4] * 100 if strat else 5,
             "tp": strat[5] * 100 if strat else 10,
+            "positions_detail": [
+                {"coin": p["coin"], "position_type": p["position_type"],
+                 "amount": round(p["amount"], 2), "pnl": round(p["pnl"], 4)}
+                for p in open_pos
+            ],
         })
     return result
