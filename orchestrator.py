@@ -63,60 +63,54 @@ def run():
 
             # LONG (achat)
             if signal_type == "buy" and not market_in_panic:
+                coin = signal.get("coin", "")
 
-            coin = signal.get("coin", "")
+                open_positions = get_open_positions()
+                open_coins = [p[1] for p in open_positions]
+                open_large = sum(1 for c in open_coins if c in LARGE_CAPS)
+                open_meme = sum(1 for c in open_coins if c in MEME_COINS)
+                if coin in LARGE_CAPS and open_large >= 1:
+                    print(f"[Orchestrateur] {coin} ignoré — 1 large cap déjà ouvert")
+                    continue
+                if coin in MEME_COINS and open_meme >= 2:
+                    print(f"[Orchestrateur] {coin} ignoré — 2 meme coins déjà ouverts")
+                    continue
 
-            # Anti-corrélation : max 1 large cap + 1 meme coin simultanément
-            open_positions = get_open_positions()
-            open_coins = [p[1] for p in open_positions]
-            open_large = sum(1 for c in open_coins if c in LARGE_CAPS)
-            open_meme = sum(1 for c in open_coins if c in MEME_COINS)
-            if coin in LARGE_CAPS and open_large >= 1:
-                print(f"[Orchestrateur] {coin} ignoré — 1 large cap déjà ouvert")
-                continue
-            if coin in MEME_COINS and open_meme >= 2:
-                print(f"[Orchestrateur] {coin} ignoré — 2 meme coins déjà ouverts")
-                continue
+                history = analyze_history(coin)
+                social = get_social_score(coin)
+                news = analyze_news(coin)
 
-            history = analyze_history(coin)
-            social = get_social_score(coin)
-            news = analyze_news(coin)
+                scored = calculate_score(signal, intelligence_signal=social, history_signal=history, news_signal=news)
+                if scored["recommendation"] != "buy":
+                    print(f"[Orchestrateur] Signal {coin} rejeté: {scored['reasons']}")
+                    continue
 
-            # Scoring complet : technique + historique + social + news
-            scored = calculate_score(signal, intelligence_signal=social, history_signal=history, news_signal=news)
-            if scored["recommendation"] != "buy":
-                print(f"[Orchestrateur] Signal {coin} rejeté après analyse: {scored['reasons']}")
-                continue
+                price = signal.get("price", 0)
+                if price <= 0:
+                    continue
 
-            price = signal.get("price", 0)
+                risk = check_risk(scored["coin"], scored["final_score"], price)
+                if not risk["approved"]:
+                    print(f"[Orchestrateur] Trade refusé pour {coin}: {risk['reason']}")
+                    continue
 
-            if price <= 0:
-                continue
-
-            # Vérification du risque
-            risk = check_risk(scored["coin"], scored["final_score"], price)
-            if not risk["approved"]:
-                print(f"[Orchestrateur] Trade refusé pour {coin}: {risk['reason']}")
-                continue
-
-            # Exécution
-            result = execute_buy(
-                coin=coin,
-                trade_amount=risk["trade_amount"],
-                price=price,
-                stop_loss=risk["stop_loss"],
-                take_profit=risk["take_profit"]
-            )
-
-            if result["success"]:
-                report_buy(
-                    coin=scored["coin"],
-                    tokens=result["tokens"],
+                result = execute_buy(
+                    coin=coin,
+                    trade_amount=risk["trade_amount"],
                     price=price,
-                    amount_spent=result["amount_spent"],
                     stop_loss=risk["stop_loss"],
                     take_profit=risk["take_profit"]
                 )
+
+                if result["success"]:
+                    report_buy(
+                        coin=scored["coin"],
+                        tokens=result["tokens"],
+                        price=price,
+                        amount_spent=result["amount_spent"],
+                        stop_loss=risk["stop_loss"],
+                        take_profit=risk["take_profit"]
+                    )
 
             # SHORT (vente à découvert) sur signal SELL
             elif signal_type == "sell":
