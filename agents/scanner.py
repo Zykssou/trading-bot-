@@ -97,7 +97,7 @@ def analyze_coin(coin_data, previous_data=None):
         "buyable": buyable,
     }
 
-def run_scanner(previous_data_store=None):
+def run_scanner(previous_data_store=None, extra_coins=None):
     print(f"[Scanner] Scan démarré à {datetime.now().strftime('%H:%M:%S')}")
 
     if previous_data_store is None:
@@ -105,8 +105,8 @@ def run_scanner(previous_data_store=None):
 
     results = []
 
-    # Seulement les coins de la config — pas de trending aléatoire
-    all_coins = TRACKED_COINS
+    # Coins de la config + coins des positions ouvertes (pour pouvoir les fermer)
+    all_coins = list(set(TRACKED_COINS + (extra_coins or [])))
 
     for coin in all_coins:
         data = fetch_coin_data(coin)

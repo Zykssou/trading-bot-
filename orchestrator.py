@@ -28,8 +28,9 @@ def run():
         cycle += 1
         print(f"\n--- Cycle #{cycle} | {datetime.now().strftime('%H:%M:%S')} ---")
 
-        # 1. Scanner — récupère les données et signaux
-        scanner_signals, previous_data_store = run_scanner(previous_data_store)
+        # 1. Scanner — récupère les données et signaux (+ coins des positions ouvertes)
+        open_position_coins = [p[1] for p in get_open_positions()]
+        scanner_signals, previous_data_store = run_scanner(previous_data_store, extra_coins=open_position_coins)
 
         # Prix actuels pour vérifier les positions
         current_prices = {
