@@ -4,7 +4,7 @@ from database.db import (
     init_multi_traders_db, get_all_multi_traders, get_multi_trader,
     update_multi_trader_balance, get_multi_open_positions,
     open_multi_position, close_multi_position, update_multi_position_price,
-    get_multi_trader_stats
+    get_multi_trader_stats, get_multi_closed_trades
 )
 
 INITIAL_BALANCE = 1000.0
@@ -194,8 +194,16 @@ def get_traders_summary():
             "tp": strat[5] * 100 if strat else 10,
             "positions_detail": [
                 {"coin": p["coin"], "position_type": p["position_type"],
-                 "amount": round(p["amount"], 2), "pnl": round(p["pnl"], 4)}
+                 "amount": round(p["amount"], 2), "pnl": round(p["pnl"], 4),
+                 "buy_price": round(p["buy_price"], 6)}
                 for p in open_pos
+            ],
+            "closed_trades": [
+                {"coin": t["coin"], "position_type": t["position_type"],
+                 "amount": round(t["amount"], 2), "buy_price": round(t["buy_price"] or 0, 6),
+                 "close_price": round(t["close_price"] or 0, 6), "pnl": round(t["pnl"], 4),
+                 "closed_at": (t["closed_at"] or "")[:16].replace("T", " ")}
+                for t in get_multi_closed_trades(tid)
             ],
         })
     return result

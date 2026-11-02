@@ -208,6 +208,9 @@
       </div>
       <div id="pos-chart"></div>
     </div>
+
+    <div class="m-section" style="margin-top:20px">Trades fermés</div>
+    <div id="m-closed-trades"><div class="empty">Aucun trade fermé</div></div>
   </div>
 </div>
 
@@ -445,7 +448,8 @@ async function openTrader(id) {
 
   // Load open positions
   currentPositions = [];
-  let posHtml = '<div class="empty">Aucune position ouverte — cliquez sur une position pour voir le graphique</div>';
+  let posHtml    = '<div class="empty">Aucune position ouverte — cliquez sur une position pour voir le graphique</div>';
+  let closedHtml = '<div class="empty">Aucun trade fermé</div>';
 
   if (id > 0) {
     try {
@@ -454,7 +458,7 @@ async function openTrader(id) {
       const t = traders.find(x => x.id === id);
       if (t && t.positions_detail && t.positions_detail.length > 0) {
         currentPositions = t.positions_detail;
-        posHtml = currentPositions.map((p, i) => {
+        posHtml = currentPositions.map((p) => {
           const slPct = r.sl || 5;
           const tpPct = r.tp || 10;
           const slPrice = p.position_type === 'short' ? p.buy_price * (1 + slPct/100) : p.buy_price * (1 - slPct/100);
@@ -473,6 +477,32 @@ async function openTrader(id) {
           </div>`;
         }).join('');
       }
+
+      // Trades fermés
+      if (t && t.closed_trades && t.closed_trades.length > 0) {
+        closedHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="color:#7d8590;border-bottom:1px solid #30363d">
+            <th style="padding:6px 4px;text-align:left">Coin</th>
+            <th style="padding:6px 4px;text-align:left">Type</th>
+            <th style="padding:6px 4px;text-align:right">Mise</th>
+            <th style="padding:6px 4px;text-align:right">Entrée</th>
+            <th style="padding:6px 4px;text-align:right">Sortie</th>
+            <th style="padding:6px 4px;text-align:right">P&L</th>
+            <th style="padding:6px 4px;text-align:right">Date</th>
+          </tr></thead><tbody>` +
+          t.closed_trades.map(ct => `
+            <tr style="border-bottom:1px solid #21262d">
+              <td style="padding:6px 4px;font-weight:700">${ct.coin.toUpperCase()}</td>
+              <td style="padding:6px 4px"><span class="pos-side-badge pos-side-${ct.position_type}">${ct.position_type.toUpperCase()}</span></td>
+              <td style="padding:6px 4px;text-align:right;color:#7d8590">${ct.amount.toFixed(0)}€</td>
+              <td style="padding:6px 4px;text-align:right;color:#7d8590">$${ct.buy_price > 0 ? ct.buy_price.toFixed(4) : '—'}</td>
+              <td style="padding:6px 4px;text-align:right;color:#7d8590">$${ct.close_price > 0 ? ct.close_price.toFixed(4) : '—'}</td>
+              <td style="padding:6px 4px;text-align:right;font-weight:700" class="${ct.pnl>=0?'val-pos':'val-neg'}">${ct.pnl>=0?'+':''}${ct.pnl.toFixed(2)}€</td>
+              <td style="padding:6px 4px;text-align:right;color:#7d8590;font-size:10px">${ct.closed_at}</td>
+            </tr>`).join('') +
+          '</tbody></table>';
+      }
+
     } catch(e) { console.error(e); }
   } else if (r._raw_agents) {
     // Bot 0: show main positions from /api/agents
@@ -483,7 +513,6 @@ async function openTrader(id) {
       const openPositions = posLogs.filter(l => l.text.startsWith('[OPEN]'));
       if (openPositions.length) {
         posHtml = openPositions.map(l => {
-          // Parse "[OPEN] BTC LONG PnL:+1.23€"
           const m = l.text.match(/\[OPEN\] (\S+) (\S+)/);
           const coin = m ? m[1].toLowerCase() : '';
           const type = m ? m[2].toLowerCase() : 'long';
@@ -498,6 +527,7 @@ async function openTrader(id) {
   }
 
   document.getElementById('m-positions').innerHTML = posHtml;
+  document.getElementById('m-closed-trades').innerHTML = closedHtml;
   document.getElementById('modal').classList.add('open');
 }
 

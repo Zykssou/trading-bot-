@@ -268,3 +268,16 @@ def get_multi_trader_stats(trader_id):
     row = c.fetchone()
     conn.close()
     return dict(row) if row else {"total":0,"wins":0,"total_pnl":0}
+
+def get_multi_closed_trades(trader_id, limit=20):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT coin, position_type, amount, buy_price, close_price, pnl, closed_at
+        FROM multi_positions WHERE trader_id=? AND status='closed'
+        ORDER BY closed_at DESC LIMIT ?
+    """, (trader_id, limit))
+    rows = c.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
