@@ -1,6 +1,43 @@
+import sqlite3
+
+DB_PATH = "trading_bot.db"
+
+def get_coin_learning_adjustment(coin):
+    """Pénalise les coins qui perdent souvent, booste ceux qui gagnent."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        # Derniers 20 trades sur ce coin (toutes sources)
+        c.execute("""
+            SELECT pnl FROM (
+                SELECT pnl FROM positions WHERE coin=? AND status='closed'
+                UNION ALL
+                SELECT pnl FROM multi_positions WHERE coin=? AND status='closed'
+            ) ORDER BY rowid DESC LIMIT 20
+        """, (coin, coin))
+        rows = c.fetchall()
+        conn.close()
+
+        if len(rows) < 5:
+            return 0  # pas assez de données
+
+        wins = sum(1 for r in rows if r[0] > 0)
+        wr = wins / len(rows)
+
+        if wr < 0.25:
+            return -30  # ce coin perd souvent → forte pénalité
+        elif wr < 0.40:
+            return -15  # résultats médiocres
+        elif wr > 0.65:
+            return +15  # ce coin performe bien → bonus
+        return 0
+    except Exception:
+        return 0
+
 def calculate_score(scanner_signal, intelligence_signal=None, history_signal=None, news_signal=None):
     score = scanner_signal.get("score", 0)
     reasons = [scanner_signal.get("reason", "")]
+    coin = scanner_signal.get("coin", "")
 
     if history_signal:
         rsi_val = history_signal.get("rsi")
@@ -32,7 +69,7 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
             score -= 20
             reasons.append("Prix pres de la resistance")
 
-        # RSI
+        # RSI — ne pas acheter si RSI > 60 (déjà surachat)
         if rsi_val is not None:
             if rsi_val < 30:
                 score += 30
@@ -41,10 +78,10 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
                 score += 10
                 reasons.append(f"RSI neutre bas ({rsi_val:.0f})")
             elif rsi_val > 70:
-                score -= 30
+                score -= 35
                 reasons.append(f"RSI surachat ({rsi_val:.0f})")
             elif rsi_val > 60:
-                score -= 10
+                score -= 20
                 reasons.append(f"RSI eleve ({rsi_val:.0f})")
 
         # MACD
@@ -82,15 +119,26 @@ def calculate_score(scanner_signal, intelligence_signal=None, history_signal=Non
             score += 10
             reasons.append(f"Buzz social modere ({buzz_score}/100)")
 
+    # Apprentissage — ajustement basé sur l'historique du coin
+    learning_adj = get_coin_learning_adjustment(coin)
+    if learning_adj != 0:
+        score += learning_adj
+        if learning_adj < 0:
+            reasons.append(f"Historique negatif sur {coin} ({learning_adj:+d})")
+        else:
+            reasons.append(f"Historique positif sur {coin} ({learning_adj:+d})")
+
     score = max(0, min(100, score))
+
+    # Seuil relevé à 65 pour éviter les faux signaux
     recommendation = "hold"
-    if score >= 50:
+    if score >= 65:
         recommendation = "buy"
     elif score <= 20:
         recommendation = "sell"
 
     return {
-        "coin": scanner_signal.get("coin"),
+        "coin": coin,
         "final_score": score,
         "recommendation": recommendation,
         "reasons": " | ".join(r for r in reasons if r)

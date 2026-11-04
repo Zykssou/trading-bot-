@@ -78,11 +78,7 @@ def analyze_coin(coin_data, previous_data=None):
         if volume_ratio >= VOLUME_SPIKE_THRESHOLD:
             score += 40
             volume_confirmed = True
-            reasons.append(f"Volume x{volume_ratio:.1f} vs hier")
-        elif volume_ratio >= 1.1:
-            score += 10
-            volume_confirmed = True
-            reasons.append(f"Volume +{(volume_ratio-1)*100:.0f}%")
+            reasons.append(f"Volume x{volume_ratio:.1f} vs scan précédent")
 
     # Signal baisse (signal de vente)
     if price_change_1h <= -threshold:
@@ -92,7 +88,7 @@ def analyze_coin(coin_data, previous_data=None):
     coin_id = coin_data.get("coin", "")
     buyable = coin_id in BUYABLE_COINS
 
-    if score >= 40 and buyable and volume_confirmed:
+    if score >= 55 and buyable and volume_confirmed:
         signal_type = "buy"
     elif score <= -20:
         signal_type = "sell"
