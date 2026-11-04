@@ -281,6 +281,26 @@ def api_agents():
     db.close()
     return jsonify(data)
 
+@app.route("/api/history")
+def api_history():
+    db = get_db()
+    main_trades = db.execute("""
+        SELECT 0 as trader_id, 'Bot Principal' as trader_name, 'Main' as strategy,
+               coin, position_type, amount, buy_price, current_price as close_price, pnl, closed_at
+        FROM positions WHERE status='closed' ORDER BY closed_at DESC
+    """).fetchall()
+    multi_trades = db.execute("""
+        SELECT mp.trader_id, mt.name as trader_name, mt.strategy,
+               mp.coin, mp.position_type, mp.amount, mp.buy_price, mp.close_price, mp.pnl, mp.closed_at
+        FROM multi_positions mp
+        JOIN multi_traders mt ON mt.id = mp.trader_id
+        WHERE mp.status='closed' ORDER BY mp.closed_at DESC
+    """).fetchall()
+    db.close()
+    all_trades = [dict(t) for t in main_trades] + [dict(t) for t in multi_trades]
+    all_trades.sort(key=lambda x: x.get("closed_at") or "", reverse=True)
+    return jsonify(all_trades)
+
 @app.route("/api/chart/<coin>")
 def api_chart(coin):
     data = fetch_chart_ohlc(coin)

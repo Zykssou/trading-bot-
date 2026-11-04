@@ -159,6 +159,22 @@
 
   /* loading */
   .loading { text-align: center; color: #7d8590; padding: 60px; font-size: 14px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid #30363d; }
+  .tab-btn { padding: 10px 20px; font-size: 13px; font-family: 'Segoe UI', sans-serif; cursor: pointer; border: none; background: none; color: #7d8590; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab-btn:hover { color: #e6edf3; }
+  .tab-btn.active { color: #e6edf3; border-bottom-color: #58a6ff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* HISTORY */
+  .hist-filters { display: flex; gap: 8px; align-items: center; padding: 14px 24px 0; flex-wrap: wrap; }
+  .hist-filter-btn { background: #161b22; border: 1px solid #30363d; color: #7d8590; padding: 4px 12px; font-size: 11px; font-family: 'Segoe UI',sans-serif; border-radius: 20px; cursor: pointer; }
+  .hist-filter-btn.active, .hist-filter-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+  .hist-search { background: #161b22; border: 1px solid #30363d; color: #e6edf3; padding: 4px 10px; font-size: 12px; border-radius: 4px; font-family: 'Segoe UI',sans-serif; width: 140px; }
+  .hist-search::placeholder { color: #7d8590; }
+  .hist-count { font-size: 11px; color: #7d8590; margin-left: auto; }
 </style>
 </head>
 <body>
@@ -182,11 +198,33 @@
   <div class="stat-card"><div class="lbl">Trades fermés</div><div class="val" id="g-trades">—</div><div class="sub" id="g-wr">—</div></div>
 </div>
 
-<!-- TABLE -->
-<div class="section">
-  <div class="section-title">Classement <span>— cliquez sur un trader pour le détail</span></div>
-  <div id="table-wrap">
-    <div class="loading">Chargement des données...</div>
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('classement',this)">Classement</button>
+  <button class="tab-btn" onclick="switchTab('historique',this)">Historique des trades</button>
+</div>
+
+<!-- TAB CLASSEMENT -->
+<div class="tab-panel active" id="tab-classement">
+  <div class="section">
+    <div class="section-title">Classement <span>— cliquez sur un trader pour le détail</span></div>
+    <div id="table-wrap"><div class="loading">Chargement des données...</div></div>
+  </div>
+</div>
+
+<!-- TAB HISTORIQUE -->
+<div class="tab-panel" id="tab-historique">
+  <div class="hist-filters">
+    <button class="hist-filter-btn active" onclick="histFilter('all',this)">Tous</button>
+    <button class="hist-filter-btn" onclick="histFilter('win',this)">✅ Gagnants</button>
+    <button class="hist-filter-btn" onclick="histFilter('loss',this)">❌ Perdants</button>
+    <button class="hist-filter-btn" onclick="histFilter('long',this)">LONG</button>
+    <button class="hist-filter-btn" onclick="histFilter('short',this)">SHORT</button>
+    <input class="hist-search" id="hist-search" type="text" placeholder="Rechercher coin..." oninput="renderHistory()">
+    <span class="hist-count" id="hist-count"></span>
+  </div>
+  <div class="section">
+    <div id="hist-wrap"><div class="loading">Chargement...</div></div>
   </div>
 </div>
 
@@ -628,6 +666,103 @@ function closeModal() {
   if (activeChart) { activeChart.remove(); activeChart = null; }
   document.getElementById('modal').classList.remove('open');
   document.getElementById('chart-zone').classList.remove('visible');
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'historique' && allHistory.length === 0) fetchHistory();
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────────────
+
+let allHistory = [];
+let histActiveFilter = 'all';
+
+async function fetchHistory() {
+  document.getElementById('hist-wrap').innerHTML = '<div class="loading">Chargement...</div>';
+  try {
+    const res = await fetch('/api/history');
+    allHistory = await res.json();
+    renderHistory();
+  } catch(e) {
+    document.getElementById('hist-wrap').innerHTML = '<div class="loading">Erreur de chargement.</div>';
+  }
+}
+
+function histFilter(f, btn) {
+  histActiveFilter = f;
+  document.querySelectorAll('.hist-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory() {
+  const search = (document.getElementById('hist-search').value || '').toLowerCase();
+  let trades = allHistory;
+  if (histActiveFilter === 'win')   trades = trades.filter(t => t.pnl > 0);
+  if (histActiveFilter === 'loss')  trades = trades.filter(t => t.pnl <= 0);
+  if (histActiveFilter === 'long')  trades = trades.filter(t => t.position_type === 'long');
+  if (histActiveFilter === 'short') trades = trades.filter(t => t.position_type === 'short');
+  if (search) trades = trades.filter(t => (t.coin||'').toLowerCase().includes(search) || (t.strategy||'').toLowerCase().includes(search));
+
+  document.getElementById('hist-count').textContent = trades.length + ' trade' + (trades.length > 1 ? 's' : '');
+
+  if (trades.length === 0) {
+    document.getElementById('hist-wrap').innerHTML = '<div class="loading">Aucun trade trouvé.</div>';
+    return;
+  }
+
+  const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const wr = Math.round(wins / trades.length * 100);
+
+  let html = `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 16px">
+      <div style="font-size:10px;color:#7d8590;margin-bottom:3px">P&L TOTAL</div>
+      <div style="font-size:18px;font-weight:700" class="${totalPnl>=0?'val-pos':'val-neg'}">${totalPnl>=0?'+':''}${totalPnl.toFixed(2)}€</div>
+    </div>
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 16px">
+      <div style="font-size:10px;color:#7d8590;margin-bottom:3px">WIN RATE</div>
+      <div style="font-size:18px;font-weight:700" class="${wr>=50?'val-pos':'val-neg'}">${wr}%</div>
+    </div>
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 16px">
+      <div style="font-size:10px;color:#7d8590;margin-bottom:3px">GAGNANTS / PERDANTS</div>
+      <div style="font-size:18px;font-weight:700"><span class="val-pos">${wins}</span> / <span class="val-neg">${trades.length - wins}</span></div>
+    </div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden">
+    <thead><tr style="border-bottom:1px solid #30363d">
+      <th style="padding:10px 12px;text-align:left;font-size:11px;color:#7d8590">COIN</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;color:#7d8590">TRADER</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;color:#7d8590">TYPE</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;color:#7d8590">MISE</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;color:#7d8590">ENTRÉE</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;color:#7d8590">SORTIE</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;color:#7d8590">P&L</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;color:#7d8590">DATE</th>
+    </tr></thead><tbody>`;
+
+  for (const t of trades) {
+    const pnl = t.pnl || 0;
+    const date = (t.closed_at || '').slice(0,16).replace('T',' ');
+    html += `<tr style="border-bottom:1px solid #21262d">
+      <td style="padding:9px 12px;font-weight:700">${(t.coin||'').toUpperCase()}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#7d8590">#${t.trader_id} ${t.strategy||''}</td>
+      <td style="padding:9px 12px"><span class="pos-side-badge pos-side-${t.position_type}">${(t.position_type||'').toUpperCase()}</span></td>
+      <td style="padding:9px 12px;text-align:right;color:#7d8590">${(t.amount||0).toFixed(0)}€</td>
+      <td style="padding:9px 12px;text-align:right;color:#7d8590;font-size:11px">$${(t.buy_price||0).toFixed(4)}</td>
+      <td style="padding:9px 12px;text-align:right;color:#7d8590;font-size:11px">$${(t.close_price||0).toFixed(4)}</td>
+      <td style="padding:9px 12px;text-align:right;font-weight:700" class="${pnl>=0?'val-pos':'val-neg'}">${pnl>=0?'+':''}${pnl.toFixed(2)}€</td>
+      <td style="padding:9px 12px;text-align:right;color:#7d8590;font-size:11px">${date}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('hist-wrap').innerHTML = html;
 }
 
 // ── INIT & AUTO-REFRESH ────────────────────────────────────────────────────
